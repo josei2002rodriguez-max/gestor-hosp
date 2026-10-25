@@ -1,0 +1,3372 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediPiso — Gestión de Salas, Camas y Pase de Visita</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.45);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.7);
+    }
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      body {
+        background: white !important;
+        color: black !important;
+      }
+    }
+    .bed-card-transition {
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    }
+    .bed-card-transition:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col selection:bg-teal-500 selection:text-white">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 shadow-sm no-print">
+    <div class="max-w-[1600px] mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand + Floor Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-md shadow-teal-500/20 shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 id="headerFloorName" class="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white cursor-pointer hover:text-teal-600 dark:hover:text-teal-400 flex items-center gap-1.5" onclick="openFloorConfigModal()" title="Haz clic para cambiar nombre del piso o servicio">
+              <span>Piso 4 - Medicina Interna</span>
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </h1>
+            <span id="headerMyServiceBadge" class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 dark:bg-teal-950/80 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+              Mi Servicio: Medicina Interna
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <span id="currentDateLabel">Pase de Visita</span>
+            <span>•</span>
+            <span id="globalRoundProgressText" class="font-medium text-teal-600 dark:text-teal-400">0/0 mis camas vistas hoy</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick KPI Counters -->
+      <div class="hidden xl:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 text-xs">
+        <div class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 shadow-sm flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span class="text-slate-500 dark:text-slate-400">Ocupación:</span>
+          <strong id="kpiOccupied" class="text-slate-900 dark:text-white font-bold">0/0</strong>
+        </div>
+        <div class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 shadow-sm flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+          <span class="text-slate-500 dark:text-slate-400">Mis Camas:</span>
+          <strong id="kpiMyBeds" class="text-indigo-600 dark:text-indigo-400 font-bold">0</strong>
+        </div>
+        <div class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 shadow-sm flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span class="text-slate-500 dark:text-slate-400">Aislamientos:</span>
+          <strong id="kpiIsolated" class="text-amber-600 dark:text-amber-400 font-bold">0</strong>
+        </div>
+        <div class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 shadow-sm flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+          <span class="text-slate-500 dark:text-slate-400">Pendientes:</span>
+          <strong id="kpiPendingTasks" class="text-rose-600 dark:text-rose-400 font-bold">0</strong>
+        </div>
+      </div>
+
+      <!-- Top Action Buttons -->
+      <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <button onclick="openNewDayModal()" class="px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:hover:bg-amber-900/70 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 flex items-center gap-1.5 transition" title="Desmarcar vistos de hoy y avanzar +1 día de hospitalización/ATB">
+          <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <span>Nuevo Día</span>
+        </button>
+
+        <button onclick="openImportPatientModal()" class="px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/20 flex items-center gap-1.5 transition" title="Importar paciente desde archivo .md o texto de WhatsApp">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          <span>Importar Cama (.md / WSP)</span>
+        </button>
+
+        <button onclick="openAddRoomModal()" class="px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white shadow-sm shadow-teal-600/20 flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          <span class="hidden sm:inline">Nueva Sala</span>
+        </button>
+
+        <button onclick="openFloorConfigModal()" class="p-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition" title="Configurar Piso, Respaldo y Salas">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+
+        <button onclick="toggleDarkMode()" class="p-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition" title="Cambiar modo claro/oscuro">
+          <svg id="themeIconSun" class="w-4 h-4 hidden dark:block text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="themeIconMoon" class="w-4 h-4 block dark:hidden text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN TABS + SEARCH / FILTER BAR -->
+    <div class="bg-slate-50/90 dark:bg-slate-900/60 border-t border-slate-200/80 dark:border-slate-800/80">
+      <div class="max-w-[1600px] mx-auto px-3 sm:px-6 py-2 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+        <!-- Navigation Tabs -->
+        <div class="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0">
+          <button onclick="switchMainTab('floor')" id="tabBtn-floor" class="tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            <span>Mapa del Piso</span>
+            <span id="badgeCountFloor" class="px-1.5 py-0.5 text-[11px] rounded-full bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200">0</span>
+          </button>
+
+          <button onclick="switchMainTab('mybeds')" id="tabBtn-mybeds" class="tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+            <span>Mis Camas (Mi Visita)</span>
+            <span id="badgeCountMyBeds" class="px-1.5 py-0.5 text-[11px] rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300">0</span>
+          </button>
+
+          <button onclick="switchMainTab('tasks')" id="tabBtn-tasks" class="tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+            <span>Central de Pendientes</span>
+            <span id="badgeCountTasks" class="px-1.5 py-0.5 text-[11px] rounded-full bg-rose-100 dark:bg-rose-900/70 text-rose-700 dark:text-rose-300">0</span>
+          </button>
+
+          <button onclick="switchMainTab('summary')" id="tabBtn-summary" class="tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Resumen y Entrega</span>
+          </button>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative flex-1 sm:w-64">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input
+              id="globalSearchInput"
+              type="text"
+              oninput="handleSearchInput(this.value)"
+              placeholder="Buscar paciente, RUT, cama, bacteria, ATB..."
+              class="w-full pl-9 pr-7 py-1.5 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+            <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Filter pills -->
+          <select id="floorQuickFilter" onchange="setFloorFilter(this.value)" class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500">
+            <option value="all">Todas las camas</option>
+            <option value="mine">⭐ Solo Mis Camas</option>
+            <option value="unseen">👁️ Pendientes de ver hoy</option>
+            <option value="seen">✅ Ya vistas hoy</option>
+            <option value="my_service">🏥 De Mi Servicio</option>
+            <option value="other_service">🔄 Ectópicos / Otro Servicio</option>
+            <option value="isolated">⚠️ Con Aislamiento</option>
+            <option value="with_tasks">📌 Con Pendientes Activos</option>
+            <option value="free">🟢 Camas Libres</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE CONTAINER -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-3 sm:px-6 py-5">
+
+    <!-- ==========================================
+         VIEW 1: MAPA DEL PISO (SALAS Y CAMAS)
+    =========================================== -->
+    <section id="view-floor" class="space-y-6">
+      <!-- Legend & Quick Filter Chips Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <span class="font-semibold text-slate-500 dark:text-slate-400 mr-1">Filtro rápido:</span>
+          <button onclick="setFloorFilter('all')" data-filter-chip="all" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">Todas</button>
+          <button onclick="setFloorFilter('mine')" data-filter-chip="mine" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">⭐ Mis Camas</button>
+          <button onclick="setFloorFilter('unseen')" data-filter-chip="unseen" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">👁️ Faltan por ver</button>
+          <button onclick="setFloorFilter('my_service')" data-filter-chip="my_service" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">🏥 Mi Servicio</button>
+          <button onclick="setFloorFilter('other_service')" data-filter-chip="other_service" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">🔄 Otro Servicio</button>
+          <button onclick="setFloorFilter('isolated')" data-filter-chip="isolated" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">⚠️ Aislamientos</button>
+          <button onclick="setFloorFilter('free')" data-filter-chip="free" class="filter-chip px-2.5 py-1 rounded-lg font-medium transition">🟢 Libres</button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Contacto</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>Gotitas</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Aéreo</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Protector</span>
+        </div>
+      </div>
+
+      <!-- Dynamic Rooms Container -->
+      <div id="roomsGridContainer" class="space-y-6"></div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: MIS CAMAS (PASE DE VISITA)
+    =========================================== -->
+    <section id="view-mybeds" class="hidden space-y-5">
+      <!-- Round Progress Header Card -->
+      <div class="bg-gradient-to-r from-indigo-600 via-teal-600 to-cyan-600 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 backdrop-blur">
+              ⭐ Mi Pase de Visita Diario
+            </span>
+            <h2 class="text-xl sm:text-2xl font-bold mt-1">Mis Camas Asignadas</h2>
+            <p class="text-xs sm:text-sm text-white/85 mt-0.5">
+              Marca rápidamente qué pacientes ya evaluaste hoy, revisa sus días de ATB y chequea sus pendientes sin perder tiempo.
+            </p>
+          </div>
+          <div class="bg-white/15 backdrop-blur rounded-2xl p-3.5 min-w-[240px] border border-white/20">
+            <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
+              <span>Progreso de Visita Hoy</span>
+              <span id="myBedsProgressFraction">0 / 0 vistos</span>
+            </div>
+            <div class="w-full h-2.5 bg-black/25 rounded-full overflow-hidden">
+              <div id="myBedsProgressBar" class="h-full bg-emerald-300 transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <div class="flex items-center justify-between mt-2.5 text-[11px] text-white/90">
+              <button onclick="markAllMyBedsSeen(true)" class="underline hover:text-white">Marcar todas vistas</button>
+              <button onclick="markAllMyBedsSeen(false)" class="underline hover:text-white">Desmarcar todas</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-sections: Pendientes de Ver Hoy vs Ya Vistos Hoy -->
+      <div id="myBedsContainer" class="space-y-6"></div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 3: CENTRAL DE PENDIENTES
+    =========================================== -->
+    <section id="view-tasks" class="hidden space-y-6">
+      <!-- Quick Add Pending Bar -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span class="w-7 h-7 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 inline-flex items-center justify-center">📌</span>
+              <span>Asignar Pendiente Rápido a una Cama</span>
+            </h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Ej: "Cama 5 pedir radiografía en 5 días", "Volver a ver cama más tarde", "Pendiente interconsulta Infectología".
+            </p>
+          </div>
+        </div>
+
+        <form onsubmit="handleQuickTaskSubmit(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+          <div class="sm:col-span-3">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Cama / Paciente</label>
+            <select id="quickTaskBedSelect" required class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500"></select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Categoría</label>
+            <select id="quickTaskCategory" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="Reevaluar">🔄 Reevaluar más tarde</option>
+              <option value="Imágenes">🩻 Imágenes / Rx / TAC</option>
+              <option value="Laboratorio">🧪 Laboratorio / Cultivos</option>
+              <option value="Interconsulta">👨‍⚕️ Interconsulta (IC)</option>
+              <option value="Procedimiento">💉 Procedimiento</option>
+              <option value="Alta/Trámite">📋 Trámite / Receta / Alta</option>
+            </select>
+          </div>
+          <div class="sm:col-span-4">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Descripción del pendiente</label>
+            <input id="quickTaskText" type="text" required placeholder="Ej: Pedir Rx de tórax control, IC Neurología, tomar hemocultivos..." class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">¿Cuándo? (Plazo)</label>
+            <div class="flex items-center gap-1">
+              <select id="quickTaskTimingType" onchange="toggleQuickTaskDaysInput()" class="w-full px-2.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="later">Más tarde hoy</option>
+                <option value="today">Hoy (Urgente)</option>
+                <option value="tomorrow">Mañana (En 1 día)</option>
+                <option value="in_days">En X días...</option>
+              </select>
+              <input id="quickTaskDaysNumber" type="number" min="1" max="90" value="5" class="hidden w-16 px-2 py-2 rounded-xl text-xs sm:text-sm text-center font-bold bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700" title="Cantidad de días" />
+            </div>
+          </div>
+          <div class="sm:col-span-1">
+            <button type="submit" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-sm transition">
+              + Agregar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Filter Tasks Toggle -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <button onclick="setTasksScope('all')" id="tasksScopeAll" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-600 text-white">Todos los pendientes del piso</button>
+          <button onclick="setTasksScope('mine')" id="tasksScopeMine" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">⭐ Solo de Mis Camas</button>
+        </div>
+        <button onclick="clearCompletedTasks()" class="text-xs text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 font-medium">
+          Limpiar completados
+        </button>
+      </div>
+
+      <!-- Tasks Columns -->
+      <div id="centralTasksContainer" class="grid grid-cols-1 lg:grid-cols-3 gap-5"></div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 4: RESUMEN CLÍNICO Y ENTREGA DE GUARDIA
+    =========================================== -->
+    <section id="view-summary" class="hidden space-y-5">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 no-print">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Resumen Rápido de Pacientes y Pase de Guardia</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Visualiza todos los datos demográficos, diagnósticos, días de hospitalización, antibióticos y pendientes o compártelos en bloque.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="summaryFilterSelect" onchange="renderSummaryView()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <option value="mine">⭐ Solo Mis Camas</option>
+            <option value="my_service">🏥 Todo Mi Servicio</option>
+            <option value="all">📋 Todas las camas ocupadas</option>
+            <option value="isolated">⚠️ Solo pacientes con aislamiento</option>
+          </select>
+          <button onclick="copySummaryToWhatsApp()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm">
+            <span>📲 Copiar Resumen para WhatsApp</span>
+          </button>
+          <button onclick="window.print()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white flex items-center gap-1.5">
+            <span>🖨️ Imprimir Hoja de Visita</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="summaryTableContainer" class="space-y-4"></div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       MODAL 1: FICHA COMPLETA DE CAMA Y PACIENTE (DRAWER / MODAL)
+  ========================================================================== -->
+  <div id="bedModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-2 sm:p-4 overflow-y-auto no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+      
+      <!-- Modal Top Header -->
+      <div class="px-4 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-3">
+          <span id="modalBedCodeBadge" class="px-3 py-1.5 rounded-xl text-sm font-extrabold bg-teal-600 text-white shadow-xs">Cama 101</span>
+          <div>
+            <h3 id="modalRoomTitle" class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Sala 1</h3>
+            <p id="modalPatientQuickSubtitle" class="text-xs text-slate-500 dark:text-slate-400">Edición rápida de paciente, aislamiento, ATB y pendientes</p>
+          </div>
+        </div>
+
+        <!-- Quick Share & Status Actions inside Modal Header -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" onclick="openSharePatientModalFromCurrentBed()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-xs transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+            <span>Compartir (.md / WhatsApp)</span>
+          </button>
+
+          <button type="button" onclick="vacateCurrentBed()" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition" title="Dar de alta o liberar cama">
+            Liberar Cama
+          </button>
+
+          <button type="button" onclick="closeBedModal()" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Scrollable Body -->
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
+        
+        <!-- ROW 1: ESTADO OPERATIVO DE LA CAMA (OCUPACIÓN, SERVICIO, MI CAMA, VISTO HOY) -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          <div class="md:col-span-3">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Código / Nombre Cama</label>
+            <input id="fieldBedCode" type="text" class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" placeholder="Ej: Cama 101" />
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Estado de Cama</label>
+            <select id="fieldBedStatus" onchange="handleBedStatusChange()" class="w-full px-3 py-2 rounded-xl text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <option value="occupied">🔴 Ocupada con Paciente</option>
+              <option value="free">🟢 Libre / Disponible</option>
+              <option value="reserved">🟡 En Reserva / Asignada</option>
+              <option value="cleaning">🔵 En Aseo Terminal</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">¿De qué Servicio es?</label>
+            <select id="fieldServiceType" onchange="toggleOtherServiceInput()" class="w-full px-3 py-2 rounded-xl text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              <option value="mine">🏥 De Mi Servicio</option>
+              <option value="other">🔄 Otro Servicio (Ectópico)</option>
+            </select>
+          </div>
+
+          <div id="otherServiceNameWrapper" class="md:col-span-3 hidden">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-1">Nombre del Otro Servicio</label>
+            <input id="fieldOtherServiceName" type="text" placeholder="Ej: Cirugía, Traumatología, Urología..." class="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700" />
+          </div>
+
+          <!-- Quick checkboxes for Mi Cama & Visto Hoy -->
+          <div class="md:col-span-12 flex flex-wrap items-center gap-3 pt-1">
+            <label class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 cursor-pointer select-none">
+              <input id="fieldIsMyBed" type="checkbox" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
+              <span class="text-xs sm:text-sm font-bold text-indigo-800 dark:text-indigo-200">⭐ Es Mi Cama (Mostrar en pestaña "Mis Camas")</span>
+            </label>
+
+            <label class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 cursor-pointer select-none">
+              <input id="fieldSeenToday" type="checkbox" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" />
+              <span class="text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-200">✅ Paciente ya evaluado / visto hoy</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- ROW 2: AISLAMIENTO Y MICROORGANISMO (150 BACTERIAS + 50 VIRUS/HONGOS) -->
+        <div class="bg-amber-50/70 dark:bg-amber-950/20 rounded-2xl p-4 border border-amber-200/90 dark:border-amber-800/60 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-2">
+              <span>⚠️ Precauciones de Aislamiento y Microbiología</span>
+            </h4>
+            <span class="text-[11px] text-amber-700 dark:text-amber-400">Catálogo integrado: 150 bacterias y 50 virus/hongos intrahospitalarios</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-4">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tipo de Aislamiento del Paciente</label>
+              <select id="fieldIsolationType" class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700">
+                <option value="none">Sin Aislamiento (Estándar)</option>
+                <option value="contacto">🟡 Aislamiento de Contacto</option>
+                <option value="gotitas">🔵 Aislamiento de Gotitas</option>
+                <option value="aereo">🟣 Aislamiento Aéreo (Respiratorio)</option>
+                <option value="contacto_gotitas">🟠 Contacto + Gotitas</option>
+                <option value="contacto_aereo">🩷 Contacto + Aéreo</option>
+                <option value="protector">🟢 Aislamiento Protector (Neutropénico)</option>
+              </select>
+            </div>
+
+            <!-- Pathogen Search & Autocomplete -->
+            <div class="md:col-span-8 relative">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Bacteria, Virus u Hongo (Escribe para buscar entre 200 patógenos o anota libremente)
+              </label>
+              <div class="flex gap-2">
+                <div class="relative flex-1">
+                  <input
+                    id="pathogenSearchInput"
+                    type="text"
+                    autocomplete="off"
+                    oninput="handlePathogenAutocomplete(this.value)"
+                    onfocus="handlePathogenAutocomplete(this.value)"
+                    placeholder="Ej: Klebsiella KPC, SAMR, Pseudomonas, Clostridioides, Influenza A, VRS..."
+                    class="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <!-- Autocomplete Dropdown -->
+                  <div id="pathogenDropdown" class="hidden absolute left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-40 divide-y divide-slate-100 dark:divide-slate-800"></div>
+                </div>
+                <button type="button" onclick="addCustomPathogenFromInput()" class="px-3 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shrink-0">
+                  + Añadir Agente
+                </button>
+              </div>
+
+              <!-- Selected Pathogens Pills -->
+              <div id="selectedPathogensContainer" class="flex flex-wrap gap-1.5 mt-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 3: DATOS DEMOGRÁFICOS Y ADMINISTRATIVOS DEL PACIENTE -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3">
+          <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <span>👤 Datos de Identificación del Paciente</span>
+          </h4>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
+            <div class="md:col-span-5">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Nombre Completo</label>
+              <input id="fieldPatientName" type="text" placeholder="Ej: María Elena González Soto" class="w-full px-3 py-2 rounded-xl text-sm font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-3">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">RUT / Documento</label>
+              <input id="fieldPatientRut" type="text" oninput="formatRutInput(this)" placeholder="12.345.678-9" class="w-full px-3 py-2 rounded-xl text-sm font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">F. Nacimiento</label>
+              <input id="fieldPatientDob" type="date" onchange="calculateAgeFromDob()" class="w-full px-2.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Edad (años)</label>
+              <input id="fieldPatientAge" type="number" min="0" max="130" placeholder="68" class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-3">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">N° de Ficha Clínica</label>
+              <input id="fieldPatientRecordNumber" type="text" placeholder="Ej: FC-884920" class="w-full px-3 py-2 rounded-xl text-sm font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-4">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Teléfono / Contacto Familiar</label>
+              <input id="fieldPatientPhone" type="text" placeholder="+56 9 8765 4321 (Hija: Carmen)" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div class="md:col-span-5">
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Dirección / Comuna / Red de Apoyo</label>
+              <input id="fieldPatientAddress" type="text" placeholder="Ej: Av. O'Higgins 442, San Fernando" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 4: HOSPITALIZACIÓN, DIAGNÓSTICOS Y PLAN CLÍNICO -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-2">
+              <span>🩺 Hospitalización, Diagnósticos y Plan</span>
+            </h4>
+            <!-- Days of hospitalization widget -->
+            <div class="flex items-center gap-3 bg-teal-50 dark:bg-teal-950/60 px-3 py-1.5 rounded-xl border border-teal-200 dark:border-teal-800">
+              <div class="flex items-center gap-1.5">
+                <label class="text-xs font-semibold text-teal-800 dark:text-teal-300">Ingreso:</label>
+                <input id="fieldAdmissionDate" type="date" onchange="calculateHospDaysFromDate()" class="px-2 py-0.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700" />
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-teal-900 dark:text-teal-200">Días Hosp:</span>
+                <button type="button" onclick="adjustHospDays(-1)" class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 font-bold text-xs">-</button>
+                <input id="fieldHospDays" type="number" min="0" max="999" value="1" class="w-14 text-center py-0.5 rounded-lg text-xs font-extrabold bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700" />
+                <button type="button" onclick="adjustHospDays(1)" class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-teal-300 dark:border-teal-700 font-bold text-xs">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Diagnósticos Activos / De Ingreso</label>
+              <textarea id="fieldDiagnoses" rows="3" placeholder="1. NAC grave / Insuficiencia respiratoria parcial&#10;2. LRA AKIN II prerrenal&#10;3. HTA / DM2 insulino requirente" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Planes / Evolución / Notas Rápidas</label>
+              <textarea id="fieldClinicalPlan" rows="3" placeholder="Afebril 48h, en destete de O2 por naricera 1L. Ajustar función renal mañana, traslape a ATB oral según cultivo..." class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 5: ANTIBIÓTICOS (ATB CON DÍAS) Y FÁRMACOS ACTIVOS -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <!-- Antibiotics Manager -->
+          <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-cyan-700 dark:text-cyan-400">
+                💊 Antibióticos Activos y Días de Tratamiento
+              </h4>
+            </div>
+
+            <!-- Add ATB form row -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+              <div class="sm:col-span-5">
+                <label class="block text-[11px] font-semibold text-slate-500 mb-0.5">Antibiótico</label>
+                <input id="newAtbName" list="commonAtbList" type="text" placeholder="Ej: Ceftriaxona, Meropenem..." class="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
+                <datalist id="commonAtbList">
+                  <option value="Ceftriaxona"></option>
+                  <option value="Cefazolina"></option>
+                  <option value="Cefepime"></option>
+                  <option value="Ceftazidima"></option>
+                  <option value="Ceftazidima/Avibactam"></option>
+                  <option value="Piperacilina/Tazobactam"></option>
+                  <option value="Ampicilina/Sulbactam"></option>
+                  <option value="Amoxicilina/Ác. Clavulánico"></option>
+                  <option value="Cloxacilina"></option>
+                  <option value="Meropenem"></option>
+                  <option value="Imipenem"></option>
+                  <option value="Ertapenem"></option>
+                  <option value="Vancomicina"></option>
+                  <option value="Linezolid"></option>
+                  <option value="Daptomicina"></option>
+                  <option value="Metronidazol"></option>
+                  <option value="Clindamicina"></option>
+                  <option value="Amikacina"></option>
+                  <option value="Gentamicina"></option>
+                  <option value="Ciprofloxacino"></option>
+                  <option value="Levofloxacino"></option>
+                  <option value="Azitromicina"></option>
+                  <option value="Claritromicina"></option>
+                  <option value="Cotrimoxazol (TMP/SMX)"></option>
+                  <option value="Colistín"></option>
+                  <option value="Tigeciclina"></option>
+                  <option value="Fluconazol"></option>
+                  <option value="Voriconazol"></option>
+                  <option value="Caspofungina"></option>
+                  <option value="Anfotericina B Liposomal"></option>
+                  <option value="Aciclovir"></option>
+                  <option value="Ganciclovir"></option>
+                  <option value="Oseltamivir"></option>
+                </datalist>
+              </div>
+              <div class="sm:col-span-3">
+                <label class="block text-[11px] font-semibold text-slate-500 mb-0.5">Dosis / Vía</label>
+                <input id="newAtbDose" type="text" placeholder="2g c/24h EV" class="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-[11px] font-semibold text-slate-500 mb-0.5">Día / Meta</label>
+                <div class="flex items-center gap-1">
+                  <input id="newAtbCurrentDay" type="number" min="0" max="120" value="1" class="w-11 text-center py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" title="Día actual" />
+                  <span class="text-xs text-slate-400">/</span>
+                  <input id="newAtbTargetDays" type="number" min="1" max="120" value="7" class="w-11 text-center py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" title="Días programados" />
+                </div>
+              </div>
+              <div class="sm:col-span-2">
+                <button type="button" onclick="addAntibioticToModal()" class="w-full py-1.5 px-2 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-700 text-white">
+                  + ATB
+                </button>
+              </div>
+            </div>
+
+            <!-- List of active ATBs -->
+            <div id="modalAtbList" class="space-y-2"></div>
+          </div>
+
+          <!-- Other Drugs / Infusions -->
+          <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col">
+            <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              💉 Fármacos de Base / Tromboprofilaxis / Bombas
+            </h4>
+            <textarea id="fieldMedications" rows="5" placeholder="- Enoxaparina 40mg SC día&#10;- Omeprazol 20mg VO día&#10;- Insulina NPH 14 UI AM / 6 UI PM&#10;- Losartán 50mg c/12h, Furosemida 20mg EV c/12h" class="w-full flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></textarea>
+          </div>
+        </div>
+
+        <!-- ROW 6: PENDIENTES DE ESTA CAMA -->
+        <div class="bg-rose-50/50 dark:bg-rose-950/20 rounded-2xl p-4 border border-rose-200/80 dark:border-rose-800/60 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-rose-800 dark:text-rose-300">
+              📌 Pendientes de esta Cama (Ej: Pedir Rx en 5 días, Reevaluar más tarde, Interconsulta)
+            </h4>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+            <div class="sm:col-span-3">
+              <select id="modalTaskCategory" class="w-full px-2.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800">
+                <option value="Reevaluar">🔄 Reevaluar más tarde</option>
+                <option value="Imágenes">🩻 Imágenes / Rx / TAC</option>
+                <option value="Laboratorio">🧪 Laboratorio / Cultivos</option>
+                <option value="Interconsulta">👨‍⚕️ Interconsulta (IC)</option>
+                <option value="Procedimiento">💉 Procedimiento</option>
+                <option value="Alta/Trámite">📋 Trámite / Receta / Alta</option>
+              </select>
+            </div>
+            <div class="sm:col-span-5">
+              <input id="modalTaskText" type="text" placeholder="Ej: Pedir radiografía de tórax control, pendiente IC Cardiología..." class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800" />
+            </div>
+            <div class="sm:col-span-3 flex items-center gap-1">
+              <select id="modalTaskTiming" onchange="toggleModalTaskDaysInput()" class="w-full px-2.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800">
+                <option value="later">Más tarde hoy</option>
+                <option value="today">Hoy (Urgente)</option>
+                <option value="tomorrow">Mañana (1 día)</option>
+                <option value="in_days">En X días...</option>
+              </select>
+              <input id="modalTaskDaysNumber" type="number" min="1" max="90" value="5" class="hidden w-16 px-2 py-2 rounded-xl text-xs font-bold text-center bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-700" />
+            </div>
+            <div class="sm:col-span-1">
+              <button type="button" onclick="addTaskInsideModal()" class="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white">
+                + Añadir
+              </button>
+            </div>
+          </div>
+
+          <div id="modalTasksList" class="space-y-2 pt-1"></div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-4 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-800/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <button type="button" onclick="deleteBedFromModal()" class="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400">
+          🗑️ Eliminar esta cama de la sala
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeBedModal()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200">
+            Cancelar
+          </button>
+          <button type="button" onclick="saveBedModal()" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-600/20">
+            💾 Guardar Cambios
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 2: COMPARTIR CAMA / EXPORTAR .MD Y WHATSAPP
+  ========================================================================== -->
+  <div id="shareModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-3 sm:p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-4 bg-emerald-600 text-white flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold">📲 Compartir Paciente por WhatsApp o Archivo .md</h3>
+          <p class="text-xs text-emerald-100">Otro usuario con MediPiso podrá importar este bloque o archivo .md y elegir en qué cama ubicarlo.</p>
+        </div>
+        <button onclick="closeShareModal()" class="p-1 rounded-lg hover:bg-white/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button onclick="sendPatientViaWhatsAppDirect()" class="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 text-left transition">
+            <div class="text-sm font-bold text-emerald-800 dark:text-emerald-300">1. Enviar a WhatsApp</div>
+            <p class="text-[11px] text-emerald-700/80 dark:text-emerald-400 mt-0.5">Abre WhatsApp con el resumen clínico + código importable `.md`.</p>
+          </button>
+
+          <button onclick="downloadPatientMarkdownFile()" class="p-3 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/70 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 text-left transition">
+            <div class="text-sm font-bold text-teal-800 dark:text-teal-300">2. Descargar archivo .md</div>
+            <p class="text-[11px] text-teal-700/80 dark:text-teal-400 mt-0.5">Descarga el archivo `.md` listo para adjuntar por WhatsApp o correo.</p>
+          </button>
+
+          <button onclick="copyShareMarkdownToClipboard()" class="p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 text-left transition">
+            <div class="text-sm font-bold text-indigo-800 dark:text-indigo-300">3. Copiar Contenido .md</div>
+            <p class="text-[11px] text-indigo-700/80 dark:text-indigo-400 mt-0.5">Copia todo al portapapeles para pegarlo donde quieras.</p>
+          </button>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Vista previa del documento `.md` generado:</label>
+          <textarea id="shareMarkdownPreview" readonly rows="11" class="w-full p-3 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 3: IMPORTAR PACIENTE (.MD O TEXTO WHATSAPP) -> ELEGIR CAMA DESTINO
+  ========================================================================== -->
+  <div id="importModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-3 sm:p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-4 bg-teal-600 text-white flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold">📥 Importar Paciente desde Archivo .md o WhatsApp</h3>
+          <p class="text-xs text-teal-100">Sube el archivo `.md` o pega el mensaje que te enviaron y elige únicamente en qué cama está el paciente.</p>
+        </div>
+        <button onclick="closeImportModal()" class="p-1 rounded-lg hover:bg-white/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+        <!-- Step 1: Upload file or paste -->
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Paso 1: Selecciona un archivo `.md` o pega el texto de WhatsApp</label>
+            <label class="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border border-teal-200 dark:border-teal-800 cursor-pointer">
+              <span>📂 Cargar archivo .md</span>
+              <input id="importMdFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" onchange="handleImportFileUpload(event)" class="hidden" />
+            </label>
+          </div>
+          <textarea
+            id="importMarkdownInput"
+            rows="6"
+            oninput="parseIncomingMarkdownPreview()"
+            placeholder="Pega aquí el contenido del mensaje de WhatsApp o carga el archivo .md..."
+            class="w-full p-3 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+          ></textarea>
+        </div>
+
+        <!-- Step 2: Detected Patient Preview -->
+        <div id="importDetectedPreviewBox" class="hidden bg-emerald-50/80 dark:bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-1">
+          <div class="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">✅ Paciente Detectado Listo para Importar:</div>
+          <div id="importDetectedSummary" class="text-xs sm:text-sm text-slate-800 dark:text-slate-200"></div>
+        </div>
+
+        <!-- Step 3: Ask ONLY Which Bed this patient is in -->
+        <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+          <label class="block text-sm font-extrabold text-slate-900 dark:text-white">
+            🛏️ ¿En qué Cama y Sala está ubicado este paciente?
+          </label>
+          <select id="importTargetBedSelect" class="w-full px-3 py-2.5 rounded-xl text-sm font-bold bg-white dark:bg-slate-900 border border-teal-400 dark:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500"></select>
+          <label class="inline-flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 pt-1 cursor-pointer">
+            <input id="importMarkAsMyBed" type="checkbox" checked class="w-4 h-4 rounded text-indigo-600" />
+            <span>⭐ Marcar automáticamente como "Mi Cama" al importar</span>
+          </label>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button onclick="closeImportModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700">Cancelar</button>
+          <button onclick="confirmPatientImport()" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+            📥 Importar Paciente a la Cama Seleccionada
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 4: CREAR / EDITAR SALA (CANTIDAD VARIABLE DE CAMAS Y AISLAMIENTO DE SALA)
+  ========================================================================== -->
+  <div id="roomModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-3 sm:p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <h3 id="roomModalTitle" class="text-base font-bold">Configurar Sala</h3>
+        <button onclick="closeRoomModal()" class="p-1 rounded-lg hover:bg-white/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form onsubmit="saveRoomModal(event)" class="p-5 space-y-4">
+        <input id="editingRoomId" type="hidden" />
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre de la Sala</label>
+          <input id="roomNameInput" type="text" required placeholder="Ej: Sala 1, Sala 2 Mujeres, Aislamiento, Intermedio..." class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cantidad de Camas en esta Sala</label>
+            <input id="roomBedCountInput" type="number" min="1" max="30" value="4" required class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            <p class="text-[11px] text-slate-400 mt-1">Cada sala puede tener distinto número de camas.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prefijo Numeración Camas</label>
+            <input id="roomBedPrefixInput" type="text" placeholder="Ej: 10, S1-C, Cama " value="Cama " class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+          </div>
+        </div>
+
+        <div class="bg-amber-50 dark:bg-amber-950/30 p-3.5 rounded-xl border border-amber-200 dark:border-amber-800 space-y-2">
+          <label class="block text-xs font-bold text-amber-900 dark:text-amber-300">⚠️ ¿La Sala Completa está en Aislamiento / Cohorte?</label>
+          <select id="roomIsolationInput" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700">
+            <option value="none">No (Aislamiento solo por cama individual)</option>
+            <option value="cohorte_contacto">🟡 Sala en Cohorte de Contacto</option>
+            <option value="cohorte_gotitas">🔵 Sala en Cohorte Respiratoria / Gotitas</option>
+            <option value="cohorte_aereo">🟣 Sala de Aislamiento Aéreo (Presión Negativa)</option>
+            <option value="protector">🟢 Sala de Aislamiento Protector</option>
+          </select>
+          <input id="roomIsolationNoteInput" type="text" placeholder="Nota opcional de sala (Ej: Cohorte Influenza A / KPC)" class="w-full px-3 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800" />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeRoomModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white">Guardar Sala</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 5: NUEVO DÍA / INICIAR RONDA MATUTINA
+  ========================================================================== -->
+  <div id="newDayModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-3 sm:p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-4 bg-amber-500 text-white flex items-center justify-between">
+        <h3 class="text-base font-bold">☀️ Iniciar Nuevo Día de Visita</h3>
+        <button onclick="closeNewDayModal()" class="p-1 rounded-lg hover:bg-white/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-3 text-xs sm:text-sm">
+        <p class="text-slate-600 dark:text-slate-300">Prepara tu piso para el pase de visita de hoy en 1 clic:</p>
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 cursor-pointer">
+          <input id="newDayResetSeen" type="checkbox" checked class="mt-0.5 w-4 h-4 rounded text-teal-600" />
+          <span><strong>Desmarcar "Visto hoy"</strong> en todas las camas para empezar el pase desde cero.</span>
+        </label>
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 cursor-pointer">
+          <input id="newDayIncrementHosp" type="checkbox" checked class="mt-0.5 w-4 h-4 rounded text-teal-600" />
+          <span><strong>Sumar +1 día de hospitalización</strong> a todos los pacientes ocupados.</span>
+        </label>
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 cursor-pointer">
+          <input id="newDayIncrementAtb" type="checkbox" checked class="mt-0.5 w-4 h-4 rounded text-teal-600" />
+          <span><strong>Sumar +1 día a los Antibióticos (ATB)</strong> activos.</span>
+        </label>
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 cursor-pointer">
+          <input id="newDayDecrementTasks" type="checkbox" checked class="mt-0.5 w-4 h-4 rounded text-teal-600" />
+          <span><strong>Descontar 1 día a los pendientes programados</strong> (ej: "En 5 días" pasa a "En 4 días").</span>
+        </label>
+
+        <div class="flex justify-end gap-2 pt-3">
+          <button onclick="closeNewDayModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700">Cancelar</button>
+          <button onclick="confirmStartNewDay()" class="px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm">☀️ Iniciar Nuevo Día</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 6: CONFIGURACIÓN DEL PISO / RESPALDO COMPLETO / GENERADOR RÁPIDO
+  ========================================================================== -->
+  <div id="floorConfigModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs hidden items-center justify-center p-3 sm:p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <h3 class="text-base font-bold">⚙️ Configuración del Piso y Servicio</h3>
+        <button onclick="closeFloorConfigModal()" class="p-1 rounded-lg hover:bg-white/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre del Piso / Sector</label>
+            <input id="configFloorName" type="text" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre de "Mi Servicio"</label>
+            <input id="configMyServiceName" type="text" placeholder="Ej: Medicina Interna, Cirugía..." class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+          </div>
+        </div>
+
+        <button onclick="saveFloorHeaderSettings()" class="w-full py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white">
+          Guardar Nombre del Piso y Servicio
+        </button>
+
+        <hr class="border-slate-200 dark:border-slate-800" />
+
+        <!-- Custom Floor Generator -->
+        <div class="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+          <h4 class="text-xs font-extrabold uppercase text-slate-700 dark:text-slate-200">🏗️ Generador Rápido de Piso a Medida</h4>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            Escribe cuántas camas tiene cada sala separadas por coma. Ejemplo: <code class="font-mono font-bold text-teal-600">4, 4, 2, 6, 1</code> creará 5 salas (Sala 1 con 4 camas, Sala 2 con 4 camas, Sala 3 con 2 camas, Sala 4 con 6 camas y Sala 5 con 1 cama).
+          </p>
+          <div class="flex gap-2">
+            <input id="quickBuilderPattern" type="text" placeholder="Ej: 4, 4, 2, 6, 1" class="flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700" />
+            <button onclick="buildFloorFromPattern()" class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+              Crear Estructura
+            </button>
+          </div>
+        </div>
+
+        <!-- Backup & Restore -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <button onclick="exportFullFloorBackup()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
+            ⬇️ Exportar Respaldo Completo (.json)
+          </button>
+          <button onclick="loadDemoFloorData()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+            🔄 Restaurar Piso de Ejemplo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none no-print"></div>
+
+  <!-- =========================================================================
+       APPLICATION JAVASCRIPT (PATHOGEN DB + STATE + RENDERERS + MD EXPORT/IMPORT)
+  ========================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. CATALOG OF 200 HOSPITAL PATHOGENS (150 BACTERIA + 50 VIRUSES & FUNGI)
+    //    Includes automatic suggested isolation precaution!
+    // =========================================================================
+    const HOSPITAL_PATHOGENS_DB = [
+      // --- GRAM NEGATIVE ENTEROBACTERALES & MULTIRESISTANT PHENOTYPES (1 - 55) ---
+      { name: "Klebsiella pneumoniae KPC (Carbapenemasa)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella pneumoniae BLEE", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella pneumoniae NDM (Metalo-beta-lactamasa)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella pneumoniae OXA-48", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella pneumoniae VIM", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella pneumoniae Multisensible", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Klebsiella oxytoca BLEE", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella oxytoca", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Klebsiella aerogenes (Enterobacter aerogenes) AmpC", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Klebsiella variicola", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Escherichia coli BLEE", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Escherichia coli Productora de Carbapenemasa (EPC)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Escherichia coli Uropatógena (UPEC)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Escherichia coli Enterohemorrágica (EHEC O157:H7)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Escherichia coli Enterotoxigénica (ETEC)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Escherichia coli Enteropatogénica (EPEC)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterobacter cloacae complex AmpC", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterobacter cloacae Productor de Carbapenemasa", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterobacter hormaechei", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterobacter asburiae", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Serratia marcescens MDR", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Serratia marcescens", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Serratia liquefaciens", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Citrobacter freundii AmpC", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Citrobacter koseri", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Citrobacter braakii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Proteus mirabilis BLEE", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Proteus mirabilis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Proteus vulgaris", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Proteus penneri", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Morganella morganii AmpC", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Morganella morganii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Providencia stuartii MDR", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Providencia rettgeri", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Providencia alcalifaciens", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pantoea agglomerans", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Hafnia alvei", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Raoultella ornithinolytica", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Raoultella planticola", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Cronobacter sakazakii", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Kluyvera ascorbata", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Edwardsiella tarda", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Salmonella enterica serovar Enteritidis", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Salmonella enterica serovar Typhimurium", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Salmonella Typhi", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Salmonella Paratyphi", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Shigella sonnei", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Shigella flexneri", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Shigella dysenteriae", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Yersinia enterocolitica", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Yersinia pseudotuberculosis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Campylobacter jejuni", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Campylobacter coli", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Campylobacter fetus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Helicobacter pylori", category: "Bacteria", suggestedIsolation: "none" },
+
+      // --- NON-FERMENTING GRAM NEGATIVE BACILLI (56 - 80) ---
+      { name: "Pseudomonas aeruginosa MDR / XDR", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Pseudomonas aeruginosa Resistente a Carbapenémicos (CRPA)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Pseudomonas aeruginosa Productora de VIM / IMP", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Pseudomonas aeruginosa Multisensible", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pseudomonas putida", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pseudomonas fluorescens", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pseudomonas stutzeri", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Acinetobacter baumannii Complejo Resistente a Carbapenémicos (CRAB)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Acinetobacter baumannii XDR / Panresistente", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Acinetobacter pittii", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Acinetobacter lwoffii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Stenotrophomonas maltophilia", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Burkholderia cepacia complex", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Burkholderia gladioli", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Burkholderia pseudomallei", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Achromobacter xylosoxidans", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Alcaligenes faecalis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Elizabethkingia meningoseptica", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Chryseobacterium indologenes", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Ralstonia pickettii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Sphingomonas paucimobilis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Brevundimonas vesicularis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Ochrobactrum anthropi", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Aeromonas hydrophila", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Vibrio cholerae / Vibrio parahaemolyticus", category: "Bacteria", suggestedIsolation: "contacto" },
+
+      // --- GRAM POSITIVE COCCI & BACILLI (81 - 120) ---
+      { name: "Staphylococcus aureus Meticilino Resistente (SAMR / MRSA)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Staphylococcus aureus Meticilino Sensible (SAMS / MSSA)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus aureus con sensibilidad intermedia a Vancomicina (VISA)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Staphylococcus epidermidis Resistente a Meticilina", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus haemolyticus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus hominis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus lugdunensis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus saprophyticus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Staphylococcus capitis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Enterococcus faecium Resistente a Vancomicina (ERV / VRE)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterococcus faecalis Resistente a Vancomicina (ERV)", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Enterococcus faecalis Sensible a Ampicilina", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Enterococcus faecium Sensible a Vancomicina", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Enterococcus gallinarum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Enterococcus casseliflavus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Enterococcus avium", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus pneumoniae (Neumococo)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus pneumoniae Resistente a Penicilina", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Streptococcus pyogenes (Grupo A - Invasor / Fascitis / Escarlatina)", category: "Bacteria", suggestedIsolation: "contacto_gotitas" },
+      { name: "Streptococcus agalactiae (Grupo B)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus dysgalactiae (Grupo C / G)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus anginosus (Grupo Milleri)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus intermedius", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus constellatus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus mitis / oralis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus sanguinis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus mutans", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Streptococcus gallolyticus (S. bovis)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Abiotrophia defectiva / Granulicatella", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Gemella morbillorum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Leuconostoc mesenteroides", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pediococcus spp.", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Listeria monocytogenes", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Corynebacterium striatum MDR", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Corynebacterium jeikeium", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Corynebacterium urealyticum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Corynebacterium diphtheriae", category: "Bacteria", suggestedIsolation: "contacto_gotitas" },
+      { name: "Bacillus cereus", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Nocardia farcinica / Nocardia asteroides", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Rhodococcus equi", category: "Bacteria", suggestedIsolation: "none" },
+
+      // --- ANAEROBES, MYCOBACTERIA, RESPIRATORY & FASTIDIOUS BACTERIA (121 - 150) ---
+      { name: "Clostridioides difficile (Clostridium difficile) Toxigénico", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Clostridium perfringens", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Clostridium septicum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Clostridium tetani", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Bacteroides fragilis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Bacteroides thetaiotaomicron", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Prevotella melaninogenica", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Fusobacterium necrophorum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Fusobacterium nucleatum", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Peptostreptococcus anaerobius", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Parvimonas micra", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Finegoldia magna", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Cutibacterium acnes (Propionibacterium acnes)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Actinomyces israelii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Mycobacterium tuberculosis (TBC Pulmonar Bacilífera)", category: "Bacteria", suggestedIsolation: "aereo" },
+      { name: "Mycobacterium tuberculosis MDR / XDR", category: "Bacteria", suggestedIsolation: "contacto_aereo" },
+      { name: "Mycobacterium avium complex (MAC)", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Mycobacterium abscessus", category: "Bacteria", suggestedIsolation: "contacto" },
+      { name: "Mycobacterium kansasii", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Neisseria meningitidis (Meningococo)", category: "Bacteria", suggestedIsolation: "gotitas" },
+      { name: "Neisseria gonorrhoeae", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Haemophilus influenzae tipo b / no tipificable", category: "Bacteria", suggestedIsolation: "gotitas" },
+      { name: "Moraxella catarrhalis", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Bordetella pertussis (Coqueluche)", category: "Bacteria", suggestedIsolation: "gotitas" },
+      { name: "Legionella pneumophila", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Mycoplasma pneumoniae", category: "Bacteria", suggestedIsolation: "gotitas" },
+      { name: "Chlamydophila pneumoniae", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Pasteurella multocida", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Brucella melitensis / Treponema pallidum / Leptospira", category: "Bacteria", suggestedIsolation: "none" },
+      { name: "Grupo HACEK (Haemophilus, Aggregatibacter, Cardiobacterium, Eikenella, Kingella)", category: "Bacteria", suggestedIsolation: "none" },
+
+      // --- 50 HOSPITAL VIRUSES & FUNGI (151 - 200) ---
+      { name: "SARS-CoV-2 (COVID-19)", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Influenza A (H1N1 / H3N2)", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Virus Influenza B", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Virus Respiratorio Sincicial (VRS)", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Adenovirus Respiratorio / Entérico", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Metapneumovirus Humano (hMPV)", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Parainfluenza 1", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Parainfluenza 2", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Parainfluenza 3", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Parainfluenza 4", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Rinovirus / Enterovirus Respiratorio", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Bocavirus Humano", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Coronavirus Estacional (OC43 / 229E / NL63)", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Rotavirus", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Norovirus (Gastroenteritis Aguda)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Astrovirus", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Sapovirus", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Enterovirus (Meningitis Viral / Coxsackie)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Virus Varicela-Zóster (VVZ - Varicela o Zóster Diseminado)", category: "Virus", suggestedIsolation: "contacto_aereo" },
+      { name: "Virus Sarampión (Rubeola morbillivirus)", category: "Virus", suggestedIsolation: "aereo" },
+      { name: "Virus Rubéola", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Virus Parotiditis (Paperas)", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Citomegalovirus (CMV)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Epstein-Barr (VEB)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Herpes Simple Tipo 1 (VHS-1 Encefalitis / Mucocutáneo)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Virus Herpes Simple Tipo 2 (VHS-2)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Virus Herpes Humano 6 (VHH-6)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Herpes Humano 8 (VHH-8 / Sarcoma de Kaposi)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Parvovirus B19 (Crisis Aplásica)", category: "Virus", suggestedIsolation: "gotitas" },
+      { name: "Poliomavirus BK (Nefropatía en Trasplante)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Poliomavirus JC (LEMP)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Hepatitis A (VHA)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Virus Hepatitis B (VHB)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Hepatitis C (VHC)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Hepatitis E (VHE)", category: "Virus", suggestedIsolation: "contacto" },
+      { name: "Virus de la Inmunodeficiencia Humana (VIH-1 / VIH-2)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Virus Linfotrópico T Humano (HTLV-1)", category: "Virus", suggestedIsolation: "none" },
+      { name: "Hantavirus (Virus Andes - Síndrome Cardiopulmonar)", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Virus Dengue", category: "Virus", suggestedIsolation: "none" },
+      { name: "Mpox (Viruela Símica / Monkeypox)", category: "Virus", suggestedIsolation: "contacto_gotitas" },
+      { name: "Candida auris (Multirresistente)", category: "Hongo", suggestedIsolation: "contacto" },
+      { name: "Candida albicans", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Candida glabrata (Nakaseomyces glabratus)", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Candida parapsilosis", category: "Hongo", suggestedIsolation: "contacto" },
+      { name: "Candida tropicalis", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Candida krusei (Pichia kudriavzevii)", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Aspergillus fumigatus / Aspergilosis Pulmonar Invasora", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Cryptococcus neoformans", category: "Hongo", suggestedIsolation: "none" },
+      { name: "Pneumocystis jirovecii (PCP)", category: "Hongo", suggestedIsolation: "gotitas" },
+      { name: "Mucorales (Rhizopus / Mucor - Mucormicosis)", category: "Hongo", suggestedIsolation: "none" }
+    ];
+
+    // =========================================================================
+    // 2. APPLICATION STATE & DEFAULT INITIAL FLOOR
+    // =========================================================================
+    const STORAGE_KEY = 'medipiso_clinical_state_v1';
+
+    let appState = {
+      floorName: "Piso 4 - Hospitalización Medicina",
+      myServiceName: "Medicina Interna",
+      activeTab: "floor",
+      floorFilter: "all",
+      tasksScope: "all",
+      searchQuery: "",
+      rooms: []
+    };
+
+    // Modal temporary editing state
+    let currentEditingBedRef = null; // { roomId, bedId }
+    let modalTempPathogens = [];
+    let modalTempAtbs = [];
+    let modalTempTasks = [];
+    let parsedImportPatientData = null;
+
+    function createEmptyPatient() {
+      return {
+        name: "",
+        rut: "",
+        dob: "",
+        age: "",
+        recordNumber: "",
+        phone: "",
+        address: "",
+        admissionDate: new Date().toISOString().slice(0, 10),
+        hospDays: 1,
+        diagnoses: "",
+        clinicalPlan: "",
+        medications: "",
+        isolationType: "none",
+        pathogens: [],
+        antibiotics: [],
+        tasks: []
+      };
+    }
+
+    function generateDefaultFloor() {
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+        floorName: "Piso 4 - Hospitalización Medicina",
+        myServiceName: "Medicina Interna",
+        activeTab: "floor",
+        floorFilter: "all",
+        tasksScope: "all",
+        searchQuery: "",
+        rooms: [
+          {
+            id: "room-1",
+            name: "Sala 1 (Hombres)",
+            roomIsolation: "none",
+            roomIsolationNote: "",
+            beds: [
+              {
+                id: "bed-101",
+                code: "Cama 101",
+                status: "occupied",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: true,
+                seenToday: false,
+                patient: {
+                  name: "Roberto Carlos Muñoz Tapia",
+                  rut: "9.412.883-4",
+                  dob: "1956-04-14",
+                  age: 70,
+                  recordNumber: "FC-448219",
+                  phone: "+56 9 9123 4567 (Esposa: Rosa)",
+                  address: "Población San Juan, Pasaje 4 #122, San Fernando",
+                  admissionDate: "2026-10-20",
+                  hospDays: 5,
+                  diagnoses: "1. NAC Grave bacteriana derecha\n2. EPOC Gold B exacerbado\n3. HTA crónica",
+                  clinicalPlan: "Evolución favorable, afebril 48h, saturando 94% ambiental. Completar 7 días de Ceftriaxona y traslapar.",
+                  medications: "- Enoxaparina 40mg SC día\n- Bromuro de Ipratropio 2 puff c/6h\n- Prednisona 40mg VO día\n- Losartán 50mg VO día",
+                  isolationType: "none",
+                  pathogens: ["Streptococcus pneumoniae (Neumococo)"],
+                  antibiotics: [
+                    { id: "atb-1", name: "Ceftriaxona", dose: "2g c/24h EV", currentDay: 5, targetDays: 7 }
+                  ],
+                  tasks: [
+                    { id: "t-1", category: "Imágenes", text: "Pedir radiografía de tórax control", timing: "in_days", daysRemaining: 5, completed: false },
+                    { id: "t-2", category: "Laboratorio", text: "Revisar PCR y función renal de control", timing: "today", daysRemaining: 0, completed: false }
+                  ]
+                }
+              },
+              {
+                id: "bed-102",
+                code: "Cama 102",
+                status: "occupied",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: true,
+                seenToday: true,
+                patient: {
+                  name: "Jorge Luis Valenzuela Pino",
+                  rut: "11.829.301-K",
+                  dob: "1964-08-22",
+                  age: 62,
+                  recordNumber: "FC-501923",
+                  phone: "+56 9 8442 1190 (Hijo: Matías)",
+                  address: "Av. Manso de Velasco 780, San Fernando",
+                  admissionDate: "2026-10-22",
+                  hospDays: 3,
+                  diagnoses: "1. Pielonefritis aguda complicada\n2. Litiasis ureteral distal izquierda\n3. DM2 insulino requirente",
+                  clinicalPlan: "Urocultivo positivo a E. coli BLEE sensible a carbapenémicos. Pendiente evaluación por Urología para eventual pig-tail.",
+                  medications: "- Insulina Glargina 18 UI nocturna\n- Tamsulosina 0.4mg VO noche\n- Metamizol 1g EV c/8h SOS",
+                  isolationType: "contacto",
+                  pathogens: ["Escherichia coli BLEE"],
+                  antibiotics: [
+                    { id: "atb-2", name: "Ertapenem", dose: "1g c/24h EV", currentDay: 3, targetDays: 10 }
+                  ],
+                  tasks: [
+                    { id: "t-3", category: "Interconsulta", text: "Pendiente respuesta interconsulta Urología", timing: "today", daysRemaining: 0, completed: false },
+                    { id: "t-4", category: "Reevaluar", text: "Volver a ver curva febril más tarde", timing: "later", daysRemaining: 0, completed: false }
+                  ]
+                }
+              },
+              {
+                id: "bed-103",
+                code: "Cama 103",
+                status: "occupied",
+                serviceType: "other",
+                otherServiceName: "Traumatología",
+                isMyBed: false,
+                seenToday: false,
+                patient: {
+                  name: "Pedro Antonio Riquelme Soto",
+                  rut: "14.220.118-2",
+                  dob: "1975-01-10",
+                  age: 51,
+                  recordNumber: "FC-612004",
+                  phone: "+56 9 7654 3210",
+                  address: "Chimbarongo",
+                  admissionDate: "2026-10-24",
+                  hospDays: 2,
+                  diagnoses: "1. Fractura de platillo tibial derecho (Ectópico de Traumatología)",
+                  clinicalPlan: "A cargo de equipo de Traumatología en espera de pabellón.",
+                  medications: "- Enoxaparina 40mg SC\n- Ketoprofeno 100mg EV c/8h",
+                  isolationType: "none",
+                  pathogens: [],
+                  antibiotics: [
+                    { id: "atb-3", name: "Cefazolina", dose: "2g c/8h EV", currentDay: 2, targetDays: 3 }
+                  ],
+                  tasks: []
+                }
+              },
+              {
+                id: "bed-104",
+                code: "Cama 104",
+                status: "free",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: false,
+                seenToday: false,
+                patient: createEmptyPatient()
+              }
+            ]
+          },
+          {
+            id: "room-2",
+            name: "Sala 2 (Aislamiento / Individuales)",
+            roomIsolation: "cohorte_contacto",
+            roomIsolationNote: "Precaución estricta de Contacto en Sala",
+            beds: [
+              {
+                id: "bed-201",
+                code: "Cama 201",
+                status: "occupied",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: true,
+                seenToday: false,
+                patient: {
+                  name: "Carmen Gloria Contreras Silva",
+                  rut: "7.882.410-5",
+                  dob: "1948-11-03",
+                  age: 77,
+                  recordNumber: "FC-319482",
+                  phone: "+56 9 6554 9981 (Sobrina: Andrea)",
+                  address: "Santa Cruz",
+                  admissionDate: "2026-10-18",
+                  hospDays: 7,
+                  diagnoses: "1. Bacteriemia asociada a catéter por K. pneumoniae KPC\n2. ERC Etapa 4\n3. Fibrilación auricular permanente",
+                  clinicalPlan: "Hemocultivos de control en curso. Vigilar función renal y ajuste de Ceftazidima/Avibactam.",
+                  medications: "- Apixabán 2.5mg VO c/12h\n- Bisoprolol 2.5mg VO día\n- Omeprazol 20mg VO día",
+                  isolationType: "contacto",
+                  pathogens: ["Klebsiella pneumoniae KPC (Carbapenemasa)"],
+                  antibiotics: [
+                    { id: "atb-4", name: "Ceftazidima/Avibactam", dose: "1.25g c/8h EV (ajustado)", currentDay: 6, targetDays: 14 }
+                  ],
+                  tasks: [
+                    { id: "t-5", category: "Laboratorio", text: "Rescatar resultado de hemocultivos de control", timing: "today", daysRemaining: 0, completed: false },
+                    { id: "t-6", category: "Interconsulta", text: "Visado PROA / Infectología para semana 2 de ATB", timing: "in_days", daysRemaining: 2, completed: false }
+                  ]
+                }
+              },
+              {
+                id: "bed-202",
+                code: "Cama 202",
+                status: "occupied",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: true,
+                seenToday: false,
+                patient: {
+                  name: "Elena del Carmen Bravo Fuentes",
+                  rut: "8.119.540-1",
+                  dob: "1951-06-19",
+                  age: 75,
+                  recordNumber: "FC-298114",
+                  phone: "+56 9 9331 2004 (Hija: Paola)",
+                  address: "Nancagua",
+                  admissionDate: "2026-10-21",
+                  hospDays: 4,
+                  diagnoses: "1. Diarrea aguda intrahospitalaria por Clostridioides difficile\n2. Neumonía comunitaria en resolución",
+                  clinicalPlan: "En aislamiento de contacto con lavado de manos con agua y jabón. Disminución de deposiciones a 2 al día.",
+                  medications: "- Sales de rehidratación oral\n- Enoxaparina 40mg SC día",
+                  isolationType: "contacto",
+                  pathogens: ["Clostridioides difficile (Clostridium difficile) Toxigénico"],
+                  antibiotics: [
+                    { id: "atb-5", name: "Vancomicina Oral", dose: "125mg c/6h VO", currentDay: 4, targetDays: 10 }
+                  ],
+                  tasks: [
+                    { id: "t-7", category: "Reevaluar", text: "Reevaluar hidratación y balance hídrico en la tarde", timing: "later", daysRemaining: 0, completed: false }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            id: "room-3",
+            name: "Sala 3 (Mujeres - 3 Camas)",
+            roomIsolation: "none",
+            roomIsolationNote: "",
+            beds: [
+              {
+                id: "bed-301",
+                code: "Cama 301",
+                status: "occupied",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: false,
+                seenToday: true,
+                patient: {
+                  name: "Margarita Rosa Morales Díaz",
+                  rut: "10.554.321-8",
+                  dob: "1960-02-28",
+                  age: 66,
+                  recordNumber: "FC-554102",
+                  phone: "+56 9 7711 8822",
+                  address: "San Fernando",
+                  admissionDate: today,
+                  hospDays: 2,
+                  diagnoses: "1. Influenza A con broncoespasmo secundario\n2. Asma bronquial",
+                  clinicalPlan: "Con aislamiento de gotitas por 5 días. Buena respuesta a broncodilatadores.",
+                  medications: "- Salbutamol + Ipratropio\n- Hidrocortisona 100mg EV c/8h",
+                  isolationType: "gotitas",
+                  pathogens: ["Virus Influenza A (H1N1 / H3N2)"],
+                  antibiotics: [
+                    { id: "atb-6", name: "Oseltamivir", dose: "75mg c/12h VO", currentDay: 2, targetDays: 5 }
+                  ],
+                  tasks: []
+                }
+              },
+              {
+                id: "bed-302",
+                code: "Cama 302",
+                status: "free",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: false,
+                seenToday: false,
+                patient: createEmptyPatient()
+              },
+              {
+                id: "bed-303",
+                code: "Cama 303",
+                status: "cleaning",
+                serviceType: "mine",
+                otherServiceName: "",
+                isMyBed: false,
+                seenToday: false,
+                patient: createEmptyPatient()
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    // =========================================================================
+    // 3. PERSISTENCE & INITIALIZATION
+    // =========================================================================
+    function loadAppState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.rooms)) {
+            appState = parsed;
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando estado:", err);
+      }
+      appState = generateDefaultFloor();
+      saveAppState();
+    }
+
+    function saveAppState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.error("Error guardando estado:", err);
+      }
+    }
+
+    // =========================================================================
+    // 4. UI HELPERS & COLOR BADGES FOR ISOLATION
+    // =========================================================================
+    function getIsolationMeta(type) {
+      const map = {
+        none: { label: "Sin aislamiento", short: "", badgeClass: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400", borderClass: "" },
+        contacto: { label: "Aislamiento Contacto", short: "Contacto", badgeClass: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/90 dark:text-amber-200 dark:border-amber-700", borderClass: "ring-2 ring-amber-400/70" },
+        gotitas: { label: "Aislamiento Gotitas", short: "Gotitas", badgeClass: "bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950/90 dark:text-sky-200 dark:border-sky-700", borderClass: "ring-2 ring-sky-400/70" },
+        aereo: { label: "Aislamiento Aéreo", short: "Aéreo", badgeClass: "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/90 dark:text-purple-200 dark:border-purple-700", borderClass: "ring-2 ring-purple-400/70" },
+        contacto_gotitas: { label: "Contacto + Gotitas", short: "Contacto + Gotitas", badgeClass: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950/90 dark:text-orange-200 dark:border-orange-700", borderClass: "ring-2 ring-orange-400/70" },
+        contacto_aereo: { label: "Contacto + Aéreo", short: "Contacto + Aéreo", badgeClass: "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300 dark:bg-fuchsia-950/90 dark:text-fuchsia-200 dark:border-fuchsia-700", borderClass: "ring-2 ring-fuchsia-400/70" },
+        protector: { label: "Aislamiento Protector", short: "Protector", badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/90 dark:text-emerald-200 dark:border-emerald-700", borderClass: "ring-2 ring-emerald-400/70" }
+      };
+      return map[type] || map.none;
+    }
+
+    function getRoomIsolationBanner(roomIsolation, note) {
+      if (!roomIsolation || roomIsolation === "none") return "";
+      const map = {
+        cohorte_contacto: { text: "⚠️ SALA EN COHORTE DE CONTACTO", cls: "bg-amber-500 text-white" },
+        cohorte_gotitas: { text: "💧 SALA EN COHORTE DE GOTITAS / RESPIRATORIA", cls: "bg-sky-600 text-white" },
+        cohorte_aereo: { text: "🟣 SALA DE AISLAMIENTO AÉREO", cls: "bg-purple-600 text-white" },
+        protector: { text: "🛡️ SALA DE AISLAMIENTO PROTECTOR", cls: "bg-emerald-600 text-white" }
+      };
+      const item = map[roomIsolation] || map.cohorte_contacto;
+      return `
+        <div class="px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide flex items-center gap-1.5 ${item.cls} shadow-xs">
+          <span>${item.text}</span>
+          ${note ? `<span class="font-normal opacity-95">(${escapeHtml(note)})</span>` : ""}
+        </div>
+      `;
+    }
+
+    function formatTaskTimingBadge(task) {
+      if (task.timing === "today") {
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">HOY</span>`;
+      }
+      if (task.timing === "later") {
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">Más tarde</span>`;
+      }
+      if (task.timing === "tomorrow") {
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">Mañana</span>`;
+      }
+      const d = Number(task.daysRemaining || 1);
+      if (d <= 0) {
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">¡Cumple Hoy!</span>`;
+      }
+      return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">En ${d} día${d === 1 ? '' : 's'}</span>`;
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function showToast(message, type = "success") {
+      const container = document.getElementById("toastContainer");
+      const el = document.createElement("div");
+      const colors = {
+        success: "bg-slate-900 dark:bg-teal-600 text-white",
+        info: "bg-indigo-600 text-white",
+        warning: "bg-amber-600 text-white"
+      };
+      el.className = `px-4 py-2.5 rounded-xl shadow-lg text-xs sm:text-sm font-semibold flex items-center gap-2 pointer-events-auto transition-all duration-300 ${colors[type] || colors.success}`;
+      el.innerHTML = `<span>${escapeHtml(message)}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = "0";
+        setTimeout(() => el.remove(), 250);
+      }, 2800);
+    }
+
+    // =========================================================================
+    // 5. MAIN RENDER ORCHESTRATOR
+    // =========================================================================
+    function renderAll() {
+      // Header titles
+      document.getElementById("headerFloorName").querySelector("span").textContent = appState.floorName || "Mi Piso Hospitalario";
+      document.getElementById("headerMyServiceBadge").textContent = `Mi Servicio: ${appState.myServiceName || "Medicina"}`;
+
+      // Date label
+      const now = new Date();
+      document.getElementById("currentDateLabel").textContent = now.toLocaleDateString("es-CL", {
+        weekday: "short",
+        day: "numeric",
+        month: "short"
+      });
+
+      // Compute KPIs
+      let totalBeds = 0;
+      let occupiedBeds = 0;
+      let myBedsTotal = 0;
+      let myBedsSeen = 0;
+      let isolatedBeds = 0;
+      let activeTasksCount = 0;
+
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          totalBeds++;
+          if (bed.status === "occupied") occupiedBeds++;
+          if (bed.isMyBed && bed.status === "occupied") {
+            myBedsTotal++;
+            if (bed.seenToday) myBedsSeen++;
+          }
+          if (bed.status === "occupied" && ((bed.patient?.isolationType && bed.patient.isolationType !== "none") || (room.roomIsolation && room.roomIsolation !== "none"))) {
+            isolatedBeds++;
+          }
+          if (bed.patient && Array.isArray(bed.patient.tasks)) {
+            activeTasksCount += bed.patient.tasks.filter(t => !t.completed).length;
+          }
+        });
+      });
+
+      document.getElementById("kpiOccupied").textContent = `${occupiedBeds}/${totalBeds}`;
+      document.getElementById("kpiMyBeds").textContent = `${myBedsTotal}`;
+      document.getElementById("kpiIsolated").textContent = `${isolatedBeds}`;
+      document.getElementById("kpiPendingTasks").textContent = `${activeTasksCount}`;
+      document.getElementById("globalRoundProgressText").textContent = `${myBedsSeen}/${myBedsTotal} mis camas vistas hoy`;
+
+      // Tab badges
+      document.getElementById("badgeCountFloor").textContent = totalBeds;
+      document.getElementById("badgeCountMyBeds").textContent = myBedsTotal;
+      document.getElementById("badgeCountTasks").textContent = activeTasksCount;
+
+      // Active Tab styling
+      ["floor", "mybeds", "tasks", "summary"].forEach(tab => {
+        const btn = document.getElementById(`tabBtn-${tab}`);
+        const section = document.getElementById(`view-${tab}`);
+        if (appState.activeTab === tab) {
+          btn.className = "tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap bg-teal-600 text-white shadow-xs transition";
+          section.classList.remove("hidden");
+        } else {
+          btn.className = "tab-nav-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition";
+          section.classList.add("hidden");
+        }
+      });
+
+      // Filter chips styling
+      document.querySelectorAll("[data-filter-chip]").forEach(chip => {
+        const val = chip.getAttribute("data-filter-chip");
+        if (val === appState.floorFilter) {
+          chip.className = "filter-chip px-2.5 py-1 rounded-lg font-bold bg-teal-600 text-white shadow-xs transition";
+        } else {
+          chip.className = "filter-chip px-2.5 py-1 rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition";
+        }
+      });
+      document.getElementById("floorQuickFilter").value = appState.floorFilter;
+
+      // Render active views
+      renderFloorMapView();
+      renderMyBedsView();
+      renderCentralTasksView();
+      renderSummaryView();
+    }
+
+    function switchMainTab(tab) {
+      appState.activeTab = tab;
+      saveAppState();
+      renderAll();
+    }
+
+    function setFloorFilter(filterVal) {
+      appState.floorFilter = filterVal;
+      saveAppState();
+      renderAll();
+    }
+
+    function handleSearchInput(val) {
+      appState.searchQuery = val.trim().toLowerCase();
+      document.getElementById("clearSearchBtn").classList.toggle("hidden", !appState.searchQuery);
+      renderAll();
+    }
+
+    function clearSearch() {
+      const inp = document.getElementById("globalSearchInput");
+      inp.value = "";
+      handleSearchInput("");
+    }
+
+    function doesBedMatchFilterAndSearch(bed, room) {
+      const f = appState.floorFilter;
+      const p = bed.patient || {};
+      const activeTasks = (p.tasks || []).filter(t => !t.completed);
+      const isIsolated = (p.isolationType && p.isolationType !== "none") || (room.roomIsolation && room.roomIsolation !== "none");
+
+      if (f === "mine" && !bed.isMyBed) return false;
+      if (f === "unseen" && (bed.status !== "occupied" || bed.seenToday)) return false;
+      if (f === "seen" && (bed.status !== "occupied" || !bed.seenToday)) return false;
+      if (f === "my_service" && bed.serviceType !== "mine") return false;
+      if (f === "other_service" && bed.serviceType !== "other") return false;
+      if (f === "isolated" && (!isIsolated || bed.status !== "occupied")) return false;
+      if (f === "with_tasks" && activeTasks.length === 0) return false;
+      if (f === "free" && bed.status !== "free") return false;
+
+      if (appState.searchQuery) {
+        const q = appState.searchQuery;
+        const haystack = [
+          bed.code,
+          room.name,
+          bed.otherServiceName,
+          p.name,
+          p.rut,
+          p.recordNumber,
+          p.diagnoses,
+          p.clinicalPlan,
+          ...(p.pathogens || []),
+          ...(p.antibiotics || []).map(a => a.name),
+          ...(p.tasks || []).map(t => t.text)
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    }
+
+    // =========================================================================
+    // 6. RENDER FLOOR MAP & BED CARDS
+    // =========================================================================
+    function renderFloorMapView() {
+      const container = document.getElementById("roomsGridContainer");
+      if (!appState.rooms.length) {
+        container.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border border-dashed border-slate-300 dark:border-slate-700">
+            <p class="text-base font-bold text-slate-700 dark:text-slate-200">No hay salas creadas en este piso todavía</p>
+            <p class="text-xs text-slate-500 mt-1 mb-4">Crea tu primera sala con la cantidad de camas que necesites.</p>
+            <button onclick="openAddRoomModal()" class="px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 text-white">+ Crear Primera Sala</button>
+          </div>
+        `;
+        return;
+      }
+
+      let html = "";
+      appState.rooms.forEach(room => {
+        const filteredBeds = room.beds.filter(b => doesBedMatchFilterAndSearch(b, room));
+        if (filteredBeds.length === 0 && (appState.floorFilter !== "all" || appState.searchQuery)) {
+          return;
+        }
+
+        const roomBanner = getRoomIsolationBanner(room.roomIsolation, room.roomIsolationNote);
+        const occupiedInRoom = room.beds.filter(b => b.status === "occupied").length;
+
+        html += `
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border ${room.roomIsolation && room.roomIsolation !== 'none' ? 'border-amber-400 dark:border-amber-600' : 'border-slate-200/90 dark:border-slate-800'} shadow-sm overflow-hidden">
+            <!-- Room Header -->
+            <div class="px-4 py-3 bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h2 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>🚪 ${escapeHtml(room.name)}</span>
+                </h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  ${occupiedInRoom}/${room.beds.length} camas ocupadas
+                </span>
+                ${roomBanner}
+              </div>
+
+              <!-- Room Quick Actions -->
+              <div class="flex items-center gap-1.5">
+                <button onclick="quickAddBedToRoom('${room.id}')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/80 dark:text-teal-300 border border-teal-200 dark:border-teal-800 transition">
+                  + Agregar Cama
+                </button>
+                <button onclick="openEditRoomModal('${room.id}')" class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 dark:bg-slate-800">
+                  Editar Sala
+                </button>
+                <button onclick="deleteRoom('${room.id}')" class="p-1 rounded-lg text-slate-400 hover:text-rose-600" title="Eliminar Sala">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Beds Grid inside Room -->
+            <div class="p-3.5 sm:p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+              ${filteredBeds.map(bed => renderBedCardHTML(room, bed)).join("")}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html || `
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-slate-200 dark:border-slate-800">
+          <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">Ninguna cama coincide con el filtro o búsqueda actual.</p>
+          <button onclick="setFloorFilter('all'); clearSearch();" class="mt-3 px-4 py-1.5 rounded-xl text-xs font-bold bg-teal-600 text-white">Ver todas las camas</button>
+        </div>
+      `;
+    }
+
+    function renderBedCardHTML(room, bed) {
+      const p = bed.patient || {};
+      const isoMeta = getIsolationMeta(p.isolationType || "none");
+      const activeTasks = (p.tasks || []).filter(t => !t.completed);
+      const isOccupied = bed.status === "occupied";
+
+      // Free / Reserved / Cleaning Card
+      if (!isOccupied) {
+        const statusStyles = {
+          free: { label: "Cama Libre / Disponible", badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300", border: "border-dashed border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/20 dark:bg-emerald-950/10" },
+          reserved: { label: "En Reserva / Asignada", badge: "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300", border: "border-dashed border-amber-300 dark:border-amber-800/70 bg-amber-50/20 dark:bg-amber-950/10" },
+          cleaning: { label: "En Aseo Terminal", badge: "bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300", border: "border-dashed border-sky-300 dark:border-sky-800/70 bg-sky-50/20 dark:bg-sky-950/10" }
+        };
+        const st = statusStyles[bed.status] || statusStyles.free;
+        return `
+          <div onclick="openBedModal('${room.id}', '${bed.id}')" class="bed-card-transition cursor-pointer rounded-2xl p-3.5 border ${st.border} flex flex-col justify-between min-h-[175px]">
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200">${escapeHtml(bed.code)}</span>
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${st.badge}">${st.label}</span>
+            </div>
+            <div class="my-auto py-4 text-center">
+              <p class="text-xs text-slate-500 dark:text-slate-400">Haz clic para ingresar un paciente o importar ficha</p>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+              <span>${escapeHtml(room.name)}</span>
+              <span class="font-semibold text-teal-600 dark:text-teal-400">+ Ingresar Paciente →</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // Occupied Bed Card
+      const serviceBadge = bed.serviceType === "mine"
+        ? `<button onclick="event.stopPropagation(); quickToggleBedService('${room.id}', '${bed.id}')" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/90 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:opacity-80" title="Clic para cambiar entre Mi Servicio y Ectópico">🏥 ${escapeHtml(appState.myServiceName || "Mi Servicio")}</button>`
+        : `<button onclick="event.stopPropagation(); quickToggleBedService('${room.id}', '${bed.id}')" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/90 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:opacity-80" title="Clic para cambiar servicio">🔄 Ectópico: ${escapeHtml(bed.otherServiceName || "Otro Serv.")}</button>`;
+
+      const firstDiagLine = (p.diagnoses || "Sin diagnóstico registrado").split("\n")[0];
+
+      return `
+        <div onclick="openBedModal('${room.id}', '${bed.id}')" class="bed-card-transition cursor-pointer rounded-2xl p-3.5 bg-white dark:bg-slate-900 border ${bed.isMyBed ? 'border-indigo-300 dark:border-indigo-700' : 'border-slate-200 dark:border-slate-800'} ${isoMeta.borderClass} shadow-xs flex flex-col justify-between gap-2.5 relative">
+          
+          <!-- Top Bar: Bed Code + 1-Click Toggles (Mi Cama & Visto Hoy) -->
+          <div class="flex items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold ${bed.isMyBed ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white dark:bg-slate-700'}">
+                ${escapeHtml(bed.code)}
+              </span>
+              ${serviceBadge}
+            </div>
+
+            <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+              <!-- Toggle Mi Cama -->
+              <button
+                onclick="quickToggleMyBed('${room.id}', '${bed.id}')"
+                class="p-1.5 rounded-lg border text-xs font-bold transition ${bed.isMyBed ? 'bg-indigo-50 border-indigo-300 text-indigo-600 dark:bg-indigo-950 dark:border-indigo-700 dark:text-indigo-300' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700'}"
+                title="${bed.isMyBed ? 'Quitar de Mis Camas' : 'Asignar a Mis Camas'}"
+              >
+                ★
+              </button>
+
+              <!-- Toggle Visto Hoy -->
+              <button
+                onclick="quickToggleSeenToday('${room.id}', '${bed.id}')"
+                class="px-2 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition ${bed.seenToday ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs' : 'bg-slate-100 hover:bg-emerald-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'}"
+                title="Marcar si ya viste a este paciente hoy"
+              >
+                <span>${bed.seenToday ? '✓ Visto' : 'Pendiente'}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Isolation & Pathogen Alert Banner (if any) -->
+          ${(p.isolationType && p.isolationType !== "none") || (p.pathogens && p.pathogens.length > 0) ? `
+            <div class="p-2 rounded-xl border ${isoMeta.badgeClass} text-xs space-y-1">
+              ${p.isolationType && p.isolationType !== "none" ? `
+                <div class="font-extrabold flex items-center justify-between">
+                  <span>⚠️ ${isoMeta.label}</span>
+                </div>
+              ` : ""}
+              ${p.pathogens && p.pathogens.length > 0 ? `
+                <div class="flex flex-wrap gap-1">
+                  ${p.pathogens.map(ag => `<span class="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-semibold text-[11px]">🦠 ${escapeHtml(ag)}</span>`).join("")}
+                </div>
+              ` : ""}
+            </div>
+          ` : ""}
+
+          <!-- Patient Identity & Days of Hosp -->
+          <div>
+            <div class="flex items-baseline justify-between gap-2">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white leading-tight line-clamp-1">
+                ${escapeHtml(p.name || "Paciente sin nombre")}
+              </h3>
+              <span class="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                ${p.age ? `${escapeHtml(p.age)}a` : ""}
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              ${p.rut ? `<span class="font-mono">${escapeHtml(p.rut)}</span>` : ""}
+              ${p.recordNumber ? `<span>• Ficha: ${escapeHtml(p.recordNumber)}</span>` : ""}
+              <span class="font-semibold text-teal-700 dark:text-teal-400">• 🗓️ Día ${Number(p.hospDays || 1)} Hosp</span>
+            </div>
+
+            <p class="text-xs text-slate-700 dark:text-slate-300 mt-1.5 line-clamp-2 bg-slate-50 dark:bg-slate-800/60 px-2.5 py-1.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+              ${escapeHtml(firstDiagLine)}
+            </p>
+          </div>
+
+          <!-- Active Antibiotics Pills -->
+          ${p.antibiotics && p.antibiotics.length > 0 ? `
+            <div class="flex flex-wrap gap-1">
+              ${p.antibiotics.map(atb => {
+                const reachedTarget = Number(atb.currentDay) >= Number(atb.targetDays);
+                return `
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${reachedTarget ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300' : 'bg-cyan-50 text-cyan-800 dark:bg-cyan-950/80 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800'}">
+                    💊 ${escapeHtml(atb.name)} <span class="font-mono">D${atb.currentDay}/${atb.targetDays}</span>
+                  </span>
+                `;
+              }).join("")}
+            </div>
+          ` : ""}
+
+          <!-- Pending Tasks Preview on Card -->
+          <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+            ${activeTasks.length > 0 ? `
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold text-[10px]">
+                    📌 ${activeTasks.length} pendiente${activeTasks.length === 1 ? '' : 's'}
+                  </span>
+                  <span class="truncate text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                    ${escapeHtml(activeTasks[0].text)}
+                  </span>
+                </div>
+              </div>
+            ` : `
+              <span class="text-[11px] text-slate-400">Sin pendientes activos</span>
+            `}
+
+            <button
+              onclick="event.stopPropagation(); openShareModal('${room.id}', '${bed.id}')"
+              class="p-1 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 shrink-0"
+              title="Compartir esta cama por WhatsApp o .md"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+            </button>
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 7. QUICK 1-CLICK CARD TOGGLES
+    // =========================================================================
+    function findBed(roomId, bedId) {
+      const room = appState.rooms.find(r => r.id === roomId);
+      if (!room) return null;
+      const bed = room.beds.find(b => b.id === bedId);
+      return bed ? { room, bed } : null;
+    }
+
+    function quickToggleSeenToday(roomId, bedId) {
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+      found.bed.seenToday = !found.bed.seenToday;
+      saveAppState();
+      renderAll();
+      showToast(found.bed.seenToday ? `✅ ${found.bed.code} marcada como vista hoy` : `👁️ ${found.bed.code} marcada como pendiente de ver`);
+    }
+
+    function quickToggleMyBed(roomId, bedId) {
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+      found.bed.isMyBed = !found.bed.isMyBed;
+      saveAppState();
+      renderAll();
+      showToast(found.bed.isMyBed ? `⭐ ${found.bed.code} agregada a Mis Camas` : `${found.bed.code} removida de Mis Camas`);
+    }
+
+    function quickToggleBedService(roomId, bedId) {
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+      if (found.bed.serviceType === "mine") {
+        found.bed.serviceType = "other";
+        if (!found.bed.otherServiceName) found.bed.otherServiceName = "Otro Servicio";
+      } else {
+        found.bed.serviceType = "mine";
+      }
+      saveAppState();
+      renderAll();
+    }
+
+    // =========================================================================
+    // 8. RENDER "MIS CAMAS (MI PASE DE VISITA)" VIEW
+    // =========================================================================
+    function renderMyBedsView() {
+      const container = document.getElementById("myBedsContainer");
+      const myBedsList = [];
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (bed.isMyBed && bed.status === "occupied") {
+            myBedsList.push({ room, bed });
+          }
+        });
+      });
+
+      const total = myBedsList.length;
+      const seenCount = myBedsList.filter(x => x.bed.seenToday).length;
+      const pct = total > 0 ? Math.round((seenCount / total) * 100) : 0;
+
+      document.getElementById("myBedsProgressFraction").textContent = `${seenCount} / ${total} vistos (${pct}%)`;
+      document.getElementById("myBedsProgressBar").style.width = `${pct}%`;
+
+      if (total === 0) {
+        container.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border border-slate-200 dark:border-slate-800">
+            <p class="text-base font-bold text-slate-800 dark:text-slate-100">No tienes camas marcadas como "Mis Camas" (★)</p>
+            <p class="text-xs text-slate-500 mt-1 mb-4">En el Mapa del Piso toca la estrella ★ en tus camas asignadas para armar tu lista de visita personalizada.</p>
+            <button onclick="switchMainTab('floor')" class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white">Ir al Mapa del Piso</button>
+          </div>
+        `;
+        return;
+      }
+
+      const unseen = myBedsList.filter(x => !x.bed.seenToday);
+      const seen = myBedsList.filter(x => x.bed.seenToday);
+
+      container.innerHTML = `
+        <!-- Unseen Section -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm sm:text-base font-extrabold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <span>👁️ Pendientes de Evaluar Hoy (${unseen.length})</span>
+            </h3>
+          </div>
+          ${unseen.length > 0 ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${unseen.map(item => renderBedCardHTML(item.room, item.bed)).join("")}
+            </div>
+          ` : `
+            <div class="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 text-center text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-300">
+              🎉 ¡Excelente! Ya viste a todos tus pacientes asignados hoy.
+            </div>
+          `}
+        </div>
+
+        <!-- Already Seen Section -->
+        ${seen.length > 0 ? `
+          <div class="space-y-3 pt-2">
+            <h3 class="text-sm sm:text-base font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+              <span>✅ Pacientes Ya Evaluados Hoy (${seen.length})</span>
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-90">
+              ${seen.map(item => renderBedCardHTML(item.room, item.bed)).join("")}
+            </div>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    function markAllMyBedsSeen(seenVal) {
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (bed.isMyBed && bed.status === "occupied") {
+            bed.seenToday = seenVal;
+          }
+        });
+      });
+      saveAppState();
+      renderAll();
+      showToast(seenVal ? "Todas tus camas marcadas como vistas hoy" : "Se reinició el estado de visto hoy en tus camas");
+    }
+
+    // =========================================================================
+    // 9. RENDER "CENTRAL DE PENDIENTES" VIEW
+    // =========================================================================
+    function toggleQuickTaskDaysInput() {
+      const sel = document.getElementById("quickTaskTimingType").value;
+      document.getElementById("quickTaskDaysNumber").classList.toggle("hidden", sel !== "in_days");
+    }
+
+    function setTasksScope(scope) {
+      appState.tasksScope = scope;
+      document.getElementById("tasksScopeAll").className = scope === "all"
+        ? "px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-600 text-white"
+        : "px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
+      document.getElementById("tasksScopeMine").className = scope === "mine"
+        ? "px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white"
+        : "px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
+      renderCentralTasksView();
+    }
+
+    function renderCentralTasksView() {
+      // Populate bed selector dropdown for quick task creation
+      const selectEl = document.getElementById("quickTaskBedSelect");
+      const prevVal = selectEl.value;
+      let optionsHtml = "";
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          const pName = bed.status === "occupied" && bed.patient?.name ? ` — ${bed.patient.name}` : " (Libre)";
+          optionsHtml += `<option value="${room.id}|${bed.id}">${escapeHtml(bed.code)} (${escapeHtml(room.name)})${escapeHtml(pName)}</option>`;
+        });
+      });
+      selectEl.innerHTML = optionsHtml;
+      if (prevVal && selectEl.querySelector(`option[value="${prevVal}"]`)) {
+        selectEl.value = prevVal;
+      }
+
+      // Collect all tasks
+      const allTasks = [];
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (appState.tasksScope === "mine" && !bed.isMyBed) return;
+          const tasks = bed.patient?.tasks || [];
+          tasks.forEach(task => {
+            allTasks.push({ room, bed, task });
+          });
+        });
+      });
+
+      const urgentToday = allTasks.filter(x => !x.task.completed && (x.task.timing === "today" || x.task.timing === "later" || Number(x.task.daysRemaining) <= 0));
+      const scheduledFuture = allTasks.filter(x => !x.task.completed && (x.task.timing === "tomorrow" || (x.task.timing === "in_days" && Number(x.task.daysRemaining) > 0)));
+      const completedList = allTasks.filter(x => x.task.completed);
+
+      const renderTaskItem = ({ room, bed, task }) => `
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 flex items-start justify-between gap-2">
+          <div class="flex items-start gap-2.5 min-w-0">
+            <input
+              type="checkbox"
+              ${task.completed ? "checked" : ""}
+              onchange="toggleTaskComplete('${room.id}', '${bed.id}', '${task.id}')"
+              class="mt-1 w-4 h-4 rounded text-teal-600 cursor-pointer"
+            />
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button onclick="openBedModal('${room.id}', '${bed.id}')" class="px-2 py-0.5 rounded text-[11px] font-extrabold bg-teal-600 text-white hover:bg-teal-700">
+                  ${escapeHtml(bed.code)}
+                </button>
+                <span class="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                  ${escapeHtml(bed.patient?.name || "Sin nombre")}
+                </span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  ${escapeHtml(task.category || "General")}
+                </span>
+                ${formatTaskTimingBadge(task)}
+              </div>
+              <p class="text-xs sm:text-sm mt-1 ${task.completed ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100 font-medium'}">
+                ${escapeHtml(task.text)}
+              </p>
+            </div>
+          </div>
+          <button onclick="deleteTaskFromBed('${room.id}', '${bed.id}', '${task.id}')" class="text-slate-400 hover:text-rose-600 p-1 shrink-0" title="Eliminar pendiente">
+            ✕
+          </button>
+        </div>
+      `;
+
+      document.getElementById("centralTasksContainer").innerHTML = `
+        <!-- Column 1: Para Hoy & Reevaluar Más Tarde -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-rose-200 dark:border-rose-900/60 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-extrabold text-rose-700 dark:text-rose-400">🔥 Para Hoy / Reevaluar Más Tarde</h3>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">${urgentToday.length}</span>
+          </div>
+          <div class="space-y-2">
+            ${urgentToday.length ? urgentToday.map(renderTaskItem).join("") : `<p class="text-xs text-slate-400 py-6 text-center">No hay pendientes urgentes para hoy.</p>`}
+          </div>
+        </div>
+
+        <!-- Column 2: Programados En X Días -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-indigo-200 dark:border-indigo-900/60 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-extrabold text-indigo-700 dark:text-indigo-400">🗓️ Programados a Futuro (En X días)</h3>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">${scheduledFuture.length}</span>
+          </div>
+          <div class="space-y-2">
+            ${scheduledFuture.length ? scheduledFuture.map(renderTaskItem).join("") : `<p class="text-xs text-slate-400 py-6 text-center">Sin pendientes programados a futuro.</p>`}
+          </div>
+        </div>
+
+        <!-- Column 3: Completados -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">✅ Realizados / Completados</h3>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">${completedList.length}</span>
+          </div>
+          <div class="space-y-2">
+            ${completedList.length ? completedList.map(renderTaskItem).join("") : `<p class="text-xs text-slate-400 py-6 text-center">Aún no hay pendientes marcados como listos.</p>`}
+          </div>
+        </div>
+      `;
+    }
+
+    function handleQuickTaskSubmit(e) {
+      e.preventDefault();
+      const targetVal = document.getElementById("quickTaskBedSelect").value;
+      if (!targetVal) return;
+      const [roomId, bedId] = targetVal.split("|");
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+
+      const category = document.getElementById("quickTaskCategory").value;
+      const text = document.getElementById("quickTaskText").value.trim();
+      const timing = document.getElementById("quickTaskTimingType").value;
+      const daysNum = Number(document.getElementById("quickTaskDaysNumber").value || 1);
+
+      if (!text) return;
+
+      if (!found.bed.patient) found.bed.patient = createEmptyPatient();
+      if (!Array.isArray(found.bed.patient.tasks)) found.bed.patient.tasks = [];
+
+      found.bed.patient.tasks.push({
+        id: "task-" + Date.now(),
+        category,
+        text,
+        timing,
+        daysRemaining: timing === "tomorrow" ? 1 : (timing === "in_days" ? daysNum : 0),
+        completed: false
+      });
+
+      document.getElementById("quickTaskText").value = "";
+      saveAppState();
+      renderAll();
+      showToast(`📌 Pendiente asignado a ${found.bed.code}`);
+    }
+
+    function toggleTaskComplete(roomId, bedId, taskId) {
+      const found = findBed(roomId, bedId);
+      if (!found || !found.bed.patient?.tasks) return;
+      const t = found.bed.patient.tasks.find(x => x.id === taskId);
+      if (t) t.completed = !t.completed;
+      saveAppState();
+      renderAll();
+    }
+
+    function deleteTaskFromBed(roomId, bedId, taskId) {
+      const found = findBed(roomId, bedId);
+      if (!found || !found.bed.patient?.tasks) return;
+      found.bed.patient.tasks = found.bed.patient.tasks.filter(x => x.id !== taskId);
+      saveAppState();
+      renderAll();
+    }
+
+    function clearCompletedTasks() {
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (bed.patient?.tasks) {
+            bed.patient.tasks = bed.patient.tasks.filter(t => !t.completed);
+          }
+        });
+      });
+      saveAppState();
+      renderAll();
+      showToast("Pendientes completados eliminados");
+    }
+
+    // =========================================================================
+    // 10. RENDER SUMMARY & HANDOVER TABLE VIEW
+    // =========================================================================
+    function getFilteredSummaryBeds() {
+      const filter = document.getElementById("summaryFilterSelect")?.value || "mine";
+      const list = [];
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (bed.status !== "occupied") return;
+          if (filter === "mine" && !bed.isMyBed) return;
+          if (filter === "my_service" && bed.serviceType !== "mine") return;
+          if (filter === "isolated" && (!bed.patient?.isolationType || bed.patient.isolationType === "none")) return;
+          list.push({ room, bed });
+        });
+      });
+      return list;
+    }
+
+    function renderSummaryView() {
+      const container = document.getElementById("summaryTableContainer");
+      const list = getFilteredSummaryBeds();
+
+      if (!list.length) {
+        container.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-slate-200 dark:border-slate-800">
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">No hay pacientes que coincidan con el filtro seleccionado.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700">
+                <th class="p-3 font-extrabold">Cama / Sala</th>
+                <th class="p-3 font-extrabold">Paciente / RUT / Ficha</th>
+                <th class="p-3 font-extrabold">Hosp / Aislamiento</th>
+                <th class="p-3 font-extrabold">Diagnósticos y Plan</th>
+                <th class="p-3 font-extrabold">ATB y Fármacos</th>
+                <th class="p-3 font-extrabold">Pendientes Activos</th>
+                <th class="p-3 font-extrabold no-print">Compartir</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              ${list.map(({ room, bed }) => {
+                const p = bed.patient || {};
+                const iso = getIsolationMeta(p.isolationType);
+                const pendingTasks = (p.tasks || []).filter(t => !t.completed);
+                return `
+                  <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 align-top">
+                    <td class="p-3 whitespace-nowrap">
+                      <div class="font-extrabold text-sm text-teal-700 dark:text-teal-400 cursor-pointer hover:underline" onclick="openBedModal('${room.id}', '${bed.id}')">${escapeHtml(bed.code)}</div>
+                      <div class="text-[11px] text-slate-500">${escapeHtml(room.name)}</div>
+                      <div class="mt-1">${bed.seenToday ? '<span class="text-[10px] font-bold text-emerald-600">✓ Visto hoy</span>' : '<span class="text-[10px] font-bold text-amber-600">👁️ Falta ver</span>'}</div>
+                    </td>
+                    <td class="p-3">
+                      <div class="font-bold text-slate-900 dark:text-white">${escapeHtml(p.name || "Sin nombre")} ${p.age ? `(${escapeHtml(p.age)}a)` : ""}</div>
+                      <div class="font-mono text-[11px] text-slate-500">RUT: ${escapeHtml(p.rut || "-")} | Ficha: ${escapeHtml(p.recordNumber || "-")}</div>
+                      ${p.phone ? `<div class="text-[11px] text-slate-500">📞 ${escapeHtml(p.phone)}</div>` : ""}
+                      ${p.address ? `<div class="text-[11px] text-slate-400">📍 ${escapeHtml(p.address)}</div>` : ""}
+                    </td>
+                    <td class="p-3">
+                      <div class="font-bold text-teal-700 dark:text-teal-300">Día ${Number(p.hospDays || 1)} Hosp</div>
+                      ${p.isolationType && p.isolationType !== "none" ? `<span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${iso.badgeClass}">${iso.label}</span>` : ""}
+                      ${(p.pathogens || []).map(ag => `<div class="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mt-0.5">🦠 ${escapeHtml(ag)}</div>`).join("")}
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      <div class="font-semibold text-slate-800 dark:text-slate-200 whitespace-pre-line">${escapeHtml(p.diagnoses || "-")}</div>
+                      ${p.clinicalPlan ? `<div class="mt-1 text-slate-500 dark:text-slate-400 whitespace-pre-line"><strong>Plan:</strong> ${escapeHtml(p.clinicalPlan)}</div>` : ""}
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      ${(p.antibiotics || []).map(a => `<div class="font-bold text-cyan-700 dark:text-cyan-300">💊 ${escapeHtml(a.name)} (${escapeHtml(a.dose)}) — D${a.currentDay}/${a.targetDays}</div>`).join("")}
+                      ${p.medications ? `<div class="mt-1 text-[11px] text-slate-500 whitespace-pre-line">${escapeHtml(p.medications)}</div>` : ""}
+                    </td>
+                    <td class="p-3">
+                      ${pendingTasks.length ? pendingTasks.map(t => `<div class="mb-1">• ${escapeHtml(t.text)} ${formatTaskTimingBadge(t)}</div>`).join("") : `<span class="text-slate-400">Sin pendientes</span>`}
+                    </td>
+                    <td class="p-3 no-print">
+                      <button onclick="openShareModal('${room.id}', '${bed.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                        📲 .md / WSP
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function copySummaryToWhatsApp() {
+      const list = getFilteredSummaryBeds();
+      if (!list.length) {
+        showToast("No hay camas en el resumen actual", "warning");
+        return;
+      }
+      let lines = [`🏥 *RESUMEN DE VISITA — ${appState.floorName}*`, ""];
+      list.forEach(({ room, bed }) => {
+        const p = bed.patient || {};
+        lines.push(`🛏️ *${bed.code} (${room.name})* — *${p.name || "Sin nombre"}* (${p.age ? p.age + "a" : ""}, RUT: ${p.rut || "-"})`);
+        lines.push(`• Hosp: Día ${p.hospDays || 1} ${p.isolationType && p.isolationType !== "none" ? `| ⚠️ Aislamiento: ${p.isolationType.toUpperCase()} (${(p.pathogens || []).join(", ")})` : ""}`);
+        if (p.diagnoses) lines.push(`• Dg: ${p.diagnoses.replace(/\n/g, " / ")}`);
+        if (p.antibiotics && p.antibiotics.length) {
+          lines.push(`• ATB: ${p.antibiotics.map(a => `${a.name} D${a.currentDay}/${a.targetDays}`).join(", ")}`);
+        }
+        const pending = (p.tasks || []).filter(t => !t.completed);
+        if (pending.length) {
+          lines.push(`• 📌 Pendientes: ${pending.map(t => t.text).join(" | ")}`);
+        }
+        lines.push("");
+      });
+      copyTextHelper(lines.join("\n"));
+      showToast("📋 Resumen completo copiado para pegar en WhatsApp");
+    }
+
+    // =========================================================================
+    // 11. PATIENT & BED MODAL (OPEN, EDIT, AUTOCOMPLETE 200 PATHOGENS, SAVE)
+    // =========================================================================
+    function openBedModal(roomId, bedId) {
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+      currentEditingBedRef = { roomId, bedId };
+      const { room, bed } = found;
+      const p = bed.patient || createEmptyPatient();
+
+      document.getElementById("modalBedCodeBadge").textContent = bed.code;
+      document.getElementById("modalRoomTitle").textContent = room.name;
+      document.getElementById("fieldBedCode").value = bed.code;
+      document.getElementById("fieldBedStatus").value = bed.status || "occupied";
+      document.getElementById("fieldServiceType").value = bed.serviceType || "mine";
+      document.getElementById("fieldOtherServiceName").value = bed.otherServiceName || "";
+      toggleOtherServiceInput();
+
+      document.getElementById("fieldIsMyBed").checked = !!bed.isMyBed;
+      document.getElementById("fieldSeenToday").checked = !!bed.seenToday;
+
+      // Isolation & Pathogens
+      document.getElementById("fieldIsolationType").value = p.isolationType || "none";
+      modalTempPathogens = Array.isArray(p.pathogens) ? [...p.pathogens] : [];
+      document.getElementById("pathogenSearchInput").value = "";
+      renderModalSelectedPathogens();
+
+      // Demographics
+      document.getElementById("fieldPatientName").value = p.name || "";
+      document.getElementById("fieldPatientRut").value = p.rut || "";
+      document.getElementById("fieldPatientDob").value = p.dob || "";
+      document.getElementById("fieldPatientAge").value = p.age !== undefined ? p.age : "";
+      document.getElementById("fieldPatientRecordNumber").value = p.recordNumber || "";
+      document.getElementById("fieldPatientPhone").value = p.phone || "";
+      document.getElementById("fieldPatientAddress").value = p.address || "";
+
+      // Clinical & Hospitalization
+      document.getElementById("fieldAdmissionDate").value = p.admissionDate || new Date().toISOString().slice(0, 10);
+      document.getElementById("fieldHospDays").value = p.hospDays !== undefined ? p.hospDays : 1;
+      document.getElementById("fieldDiagnoses").value = p.diagnoses || "";
+      document.getElementById("fieldClinicalPlan").value = p.clinicalPlan || "";
+      document.getElementById("fieldMedications").value = p.medications || "";
+
+      // ATBs & Tasks
+      modalTempAtbs = Array.isArray(p.antibiotics) ? JSON.parse(JSON.stringify(p.antibiotics)) : [];
+      modalTempTasks = Array.isArray(p.tasks) ? JSON.parse(JSON.stringify(p.tasks)) : [];
+      renderModalAtbList();
+      renderModalTasksList();
+
+      const backdrop = document.getElementById("bedModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function closeBedModal() {
+      const backdrop = document.getElementById("bedModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+      document.getElementById("pathogenDropdown").classList.add("hidden");
+      currentEditingBedRef = null;
+    }
+
+    function toggleOtherServiceInput() {
+      const val = document.getElementById("fieldServiceType").value;
+      document.getElementById("otherServiceNameWrapper").classList.toggle("hidden", val !== "other");
+    }
+
+    function handleBedStatusChange() {
+      // Optional UX hint when switching status
+    }
+
+    // Chilean RUT Formatter (XX.XXX.XXX-X)
+    function formatRutInput(input) {
+      let clean = input.value.replace(/[^0-9kK]/g, "").toUpperCase();
+      if (clean.length <= 1) {
+        input.value = clean;
+        return;
+      }
+      const body = clean.slice(0, -1);
+      const dv = clean.slice(-1);
+      const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      input.value = `${formattedBody}-${dv}`;
+    }
+
+    function calculateAgeFromDob() {
+      const dobVal = document.getElementById("fieldPatientDob").value;
+      if (!dobVal) return;
+      const dob = new Date(dobVal);
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+      if (age >= 0 && age <= 130) {
+        document.getElementById("fieldPatientAge").value = age;
+      }
+    }
+
+    function calculateHospDaysFromDate() {
+      const admVal = document.getElementById("fieldAdmissionDate").value;
+      if (!admVal) return;
+      const adm = new Date(admVal);
+      const now = new Date();
+      const diff = Math.max(1, Math.ceil((now - adm) / (1000 * 60 * 60 * 24)));
+      document.getElementById("fieldHospDays").value = diff;
+    }
+
+    function adjustHospDays(delta) {
+      const inp = document.getElementById("fieldHospDays");
+      const next = Math.max(0, Number(inp.value || 0) + delta);
+      inp.value = next;
+    }
+
+    // =========================================================================
+    // 12. 200-PATHOGEN AUTOCOMPLETE ENGINE IN MODAL
+    // =========================================================================
+    function handlePathogenAutocomplete(query) {
+      const dropdown = document.getElementById("pathogenDropdown");
+      const q = (query || "").trim().toLowerCase();
+
+      const matches = HOSPITAL_PATHOGENS_DB.filter(item => {
+        if (!q) return true;
+        return item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+      }).slice(0, 35);
+
+      if (!matches.length) {
+        dropdown.classList.add("hidden");
+        return;
+      }
+
+      dropdown.innerHTML = matches.map(item => {
+        const isoMeta = getIsolationMeta(item.suggestedIsolation);
+        const catColor = item.category === "Bacteria"
+          ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          : (item.category === "Virus" ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300" : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300");
+        return `
+          <button
+            type="button"
+            onclick="selectPathogenFromAutocomplete('${escapeHtml(item.name)}', '${item.suggestedIsolation}')"
+            class="w-full px-3 py-2 text-left hover:bg-amber-50 dark:hover:bg-slate-800 flex items-center justify-between gap-2 text-xs"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${catColor}">${item.category}</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-100 truncate">${escapeHtml(item.name)}</span>
+            </div>
+            ${item.suggestedIsolation !== "none" ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${isoMeta.badgeClass} shrink-0">Sugiere: ${isoMeta.short}</span>` : ""}
+          </button>
+        `;
+      }).join("");
+
+      dropdown.classList.remove("hidden");
+    }
+
+    function selectPathogenFromAutocomplete(name, suggestedIsolation) {
+      if (!modalTempPathogens.includes(name)) {
+        modalTempPathogens.push(name);
+      }
+      // If current isolation is 'none' and pathogen suggests one, automatically select it!
+      const isoSelect = document.getElementById("fieldIsolationType");
+      if (isoSelect.value === "none" && suggestedIsolation && suggestedIsolation !== "none") {
+        isoSelect.value = suggestedIsolation;
+        showToast(`⚠️ Aislamiento sugerido activado: ${getIsolationMeta(suggestedIsolation).label}`, "info");
+      }
+      document.getElementById("pathogenSearchInput").value = "";
+      document.getElementById("pathogenDropdown").classList.add("hidden");
+      renderModalSelectedPathogens();
+    }
+
+    function addCustomPathogenFromInput() {
+      const inp = document.getElementById("pathogenSearchInput");
+      const val = inp.value.trim();
+      if (!val) return;
+      if (!modalTempPathogens.includes(val)) {
+        modalTempPathogens.push(val);
+      }
+      inp.value = "";
+      document.getElementById("pathogenDropdown").classList.add("hidden");
+      renderModalSelectedPathogens();
+    }
+
+    function removePathogenFromModal(idx) {
+      modalTempPathogens.splice(idx, 1);
+      renderModalSelectedPathogens();
+    }
+
+    function renderModalSelectedPathogens() {
+      const container = document.getElementById("selectedPathogensContainer");
+      if (!modalTempPathogens.length) {
+        container.innerHTML = `<span class="text-[11px] text-slate-400">Ningún microorganismo seleccionado todavía.</span>`;
+        return;
+      }
+      container.innerHTML = modalTempPathogens.map((ag, idx) => `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-200/80 dark:bg-amber-900/80 text-amber-950 dark:text-amber-200">
+          <span>🦠 ${escapeHtml(ag)}</span>
+          <button type="button" onclick="removePathogenFromModal(${idx})" class="hover:text-rose-600 font-extrabold">✕</button>
+        </span>
+      `).join("");
+    }
+
+    // Close pathogen dropdown when clicking outside
+    document.addEventListener("click", (e) => {
+      const dd = document.getElementById("pathogenDropdown");
+      const inp = document.getElementById("pathogenSearchInput");
+      if (dd && inp && !dd.contains(e.target) && e.target !== inp) {
+        dd.classList.add("hidden");
+      }
+    });
+
+    // =========================================================================
+    // 13. ANTIBIOTICS & TASKS INSIDE MODAL
+    // =========================================================================
+    function addAntibioticToModal() {
+      const name = document.getElementById("newAtbName").value.trim();
+      const dose = document.getElementById("newAtbDose").value.trim();
+      const currentDay = Number(document.getElementById("newAtbCurrentDay").value || 1);
+      const targetDays = Number(document.getElementById("newAtbTargetDays").value || 7);
+
+      if (!name) {
+        showToast("Escribe el nombre del antibiótico", "warning");
+        return;
+      }
+
+      modalTempAtbs.push({
+        id: "atb-" + Date.now(),
+        name,
+        dose: dose || "EV",
+        currentDay,
+        targetDays
+      });
+
+      document.getElementById("newAtbName").value = "";
+      document.getElementById("newAtbDose").value = "";
+      document.getElementById("newAtbCurrentDay").value = 1;
+      document.getElementById("newAtbTargetDays").value = 7;
+      renderModalAtbList();
+    }
+
+    function adjustModalAtbDay(idx, delta) {
+      if (!modalTempAtbs[idx]) return;
+      modalTempAtbs[idx].currentDay = Math.max(0, Number(modalTempAtbs[idx].currentDay || 0) + delta);
+      renderModalAtbList();
+    }
+
+    function removeModalAtb(idx) {
+      modalTempAtbs.splice(idx, 1);
+      renderModalAtbList();
+    }
+
+    function renderModalAtbList() {
+      const container = document.getElementById("modalAtbList");
+      if (!modalTempAtbs.length) {
+        container.innerHTML = `<p class="text-xs text-slate-400">Sin antibióticos activos registrados.</p>`;
+        return;
+      }
+      container.innerHTML = modalTempAtbs.map((atb, idx) => `
+        <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/70 text-xs">
+          <div>
+            <span class="font-bold text-cyan-900 dark:text-cyan-200">💊 ${escapeHtml(atb.name)}</span>
+            <span class="text-slate-500 dark:text-slate-400 ml-1">(${escapeHtml(atb.dose)})</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="adjustModalAtbDay(${idx}, -1)" class="w-5 h-5 rounded bg-white dark:bg-slate-800 border border-cyan-300 dark:border-cyan-700 font-bold">-</button>
+            <span class="font-mono font-bold px-1.5">Día ${atb.currentDay}/${atb.targetDays}</span>
+            <button type="button" onclick="adjustModalAtbDay(${idx}, 1)" class="w-5 h-5 rounded bg-white dark:bg-slate-800 border border-cyan-300 dark:border-cyan-700 font-bold">+</button>
+            <button type="button" onclick="removeModalAtb(${idx})" class="text-slate-400 hover:text-rose-600 ml-1">✕</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function toggleModalTaskDaysInput() {
+      const val = document.getElementById("modalTaskTiming").value;
+      document.getElementById("modalTaskDaysNumber").classList.toggle("hidden", val !== "in_days");
+    }
+
+    function addTaskInsideModal() {
+      const category = document.getElementById("modalTaskCategory").value;
+      const text = document.getElementById("modalTaskText").value.trim();
+      const timing = document.getElementById("modalTaskTiming").value;
+      const daysNum = Number(document.getElementById("modalTaskDaysNumber").value || 5);
+
+      if (!text) return;
+
+      modalTempTasks.push({
+        id: "t-" + Date.now(),
+        category,
+        text,
+        timing,
+        daysRemaining: timing === "tomorrow" ? 1 : (timing === "in_days" ? daysNum : 0),
+        completed: false
+      });
+
+      document.getElementById("modalTaskText").value = "";
+      renderModalTasksList();
+    }
+
+    function toggleModalTaskCompleted(idx) {
+      if (!modalTempTasks[idx]) return;
+      modalTempTasks[idx].completed = !modalTempTasks[idx].completed;
+      renderModalTasksList();
+    }
+
+    function removeModalTask(idx) {
+      modalTempTasks.splice(idx, 1);
+      renderModalTasksList();
+    }
+
+    function renderModalTasksList() {
+      const container = document.getElementById("modalTasksList");
+      if (!modalTempTasks.length) {
+        container.innerHTML = `<p class="text-xs text-slate-400">Sin pendientes registrados para esta cama.</p>`;
+        return;
+      }
+      container.innerHTML = modalTempTasks.map((t, idx) => `
+        <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-slate-900 border border-rose-200/70 dark:border-rose-800/60 text-xs">
+          <label class="flex items-center gap-2 cursor-pointer min-w-0">
+            <input type="checkbox" ${t.completed ? "checked" : ""} onchange="toggleModalTaskCompleted(${idx})" class="w-4 h-4 rounded text-teal-600" />
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-[10px]">${escapeHtml(t.category)}</span>
+            <span class="${t.completed ? 'line-through text-slate-400' : 'font-semibold text-slate-800 dark:text-slate-100'} truncate">${escapeHtml(t.text)}</span>
+            ${formatTaskTimingBadge(t)}
+          </label>
+          <button type="button" onclick="removeModalTask(${idx})" class="text-slate-400 hover:text-rose-600">✕</button>
+        </div>
+      `).join("");
+    }
+
+    function saveBedModal() {
+      if (!currentEditingBedRef) return;
+      const found = findBed(currentEditingBedRef.roomId, currentEditingBedRef.bedId);
+      if (!found) return;
+      const { bed } = found;
+
+      const patientName = document.getElementById("fieldPatientName").value.trim();
+      let statusVal = document.getElementById("fieldBedStatus").value;
+      // If user typed a patient name while bed was 'free', automatically mark 'occupied'
+      if (statusVal === "free" && patientName) {
+        statusVal = "occupied";
+      }
+
+      bed.code = document.getElementById("fieldBedCode").value.trim() || bed.code;
+      bed.status = statusVal;
+      bed.serviceType = document.getElementById("fieldServiceType").value;
+      bed.otherServiceName = document.getElementById("fieldOtherServiceName").value.trim();
+      bed.isMyBed = document.getElementById("fieldIsMyBed").checked;
+      bed.seenToday = document.getElementById("fieldSeenToday").checked;
+
+      bed.patient = {
+        name: patientName,
+        rut: document.getElementById("fieldPatientRut").value.trim(),
+        dob: document.getElementById("fieldPatientDob").value,
+        age: document.getElementById("fieldPatientAge").value,
+        recordNumber: document.getElementById("fieldPatientRecordNumber").value.trim(),
+        phone: document.getElementById("fieldPatientPhone").value.trim(),
+        address: document.getElementById("fieldPatientAddress").value.trim(),
+        admissionDate: document.getElementById("fieldAdmissionDate").value,
+        hospDays: Number(document.getElementById("fieldHospDays").value || 1),
+        diagnoses: document.getElementById("fieldDiagnoses").value.trim(),
+        clinicalPlan: document.getElementById("fieldClinicalPlan").value.trim(),
+        medications: document.getElementById("fieldMedications").value.trim(),
+        isolationType: document.getElementById("fieldIsolationType").value,
+        pathogens: [...modalTempPathogens],
+        antibiotics: [...modalTempAtbs],
+        tasks: [...modalTempTasks]
+      };
+
+      saveAppState();
+      closeBedModal();
+      renderAll();
+      showToast(`💾 Datos de ${bed.code} guardados`);
+    }
+
+    function vacateCurrentBed() {
+      if (!currentEditingBedRef) return;
+      const found = findBed(currentEditingBedRef.roomId, currentEditingBedRef.bedId);
+      if (!found) return;
+      found.bed.status = "free";
+      found.bed.seenToday = false;
+      found.bed.patient = createEmptyPatient();
+      saveAppState();
+      closeBedModal();
+      renderAll();
+      showToast(`🟢 ${found.bed.code} quedó libre`);
+    }
+
+    function deleteBedFromModal() {
+      if (!currentEditingBedRef) return;
+      const { roomId, bedId } = currentEditingBedRef;
+      const room = appState.rooms.find(r => r.id === roomId);
+      if (!room) return;
+      room.beds = room.beds.filter(b => b.id !== bedId);
+      saveAppState();
+      closeBedModal();
+      renderAll();
+      showToast("🗑️ Cama eliminada de la sala");
+    }
+
+    // =========================================================================
+    // 14. MARKDOWN (.MD) & WHATSAPP EXPORT / IMPORT SYSTEM
+    // =========================================================================
+    let currentShareBedRef = null;
+
+    function generateBedMarkdownDocument(room, bed) {
+      const p = bed.patient || createEmptyPatient();
+      const isoMeta = getIsolationMeta(p.isolationType || "none");
+      const activeTasks = (p.tasks || []).filter(t => !t.completed);
+
+      const exportPayload = {
+        medipisoVersion: "1.0",
+        exportedAt: new Date().toISOString(),
+        originBedCode: bed.code,
+        originRoomName: room.name,
+        serviceType: bed.serviceType,
+        otherServiceName: bed.otherServiceName,
+        patient: p
+      };
+
+      const lines = [
+        `# 🏥 Ficha de Pase Clínico — ${p.name || "Paciente"} (${bed.code})`,
+        ``,
+        `## 👤 Datos del Paciente`,
+        `- **Nombre:** ${p.name || "-"}`,
+        `- **RUT:** ${p.rut || "-"} | **Edad:** ${p.age ? p.age + " años" : "-"} | **F. Nac:** ${p.dob || "-"}`,
+        `- **N° Ficha:** ${p.recordNumber || "-"} | **Teléfono:** ${p.phone || "-"}`,
+        `- **Dirección:** ${p.address || "-"}`,
+        `- **Días de Hospitalización:** Día ${p.hospDays || 1} (Ingreso: ${p.admissionDate || "-"})`,
+        `- **Aislamiento:** ${isoMeta.label} ${(p.pathogens && p.pathogens.length) ? `— Agente(s): ${p.pathogens.join(", ")}` : ""}`,
+        ``,
+        `## 🩺 Diagnósticos`,
+        `${p.diagnoses || "Sin diagnósticos anotados"}`,
+        ``,
+        `## 📋 Plan Clínico / Evolución`,
+        `${p.clinicalPlan || "Sin plan anotado"}`,
+        ``,
+        `## 💊 Antibióticos (ATB) y Fármacos`,
+        ...(p.antibiotics && p.antibiotics.length
+          ? p.antibiotics.map(a => `- **ATB:** ${a.name} (${a.dose}) — Día ${a.currentDay} de ${a.targetDays}`)
+          : [`- Sin antibióticos activos`]),
+        ...(p.medications ? [`\n**Fármacos de base:**\n${p.medications}`] : []),
+        ``,
+        `## 📌 Pendientes`,
+        ...(activeTasks.length
+          ? activeTasks.map(t => `- [${t.category}] ${t.text} (${t.timing === 'in_days' ? `En ${t.daysRemaining} días` : t.timing})`)
+          : [`- Sin pendientes activos`]),
+        ``,
+        `---`,
+        `<!-- MEDIPISO_JSON_START`,
+        JSON.stringify(exportPayload),
+        `MEDIPISO_JSON_END -->`
+      ];
+
+      return lines.join("\n");
+    }
+
+    function openShareModal(roomId, bedId) {
+      const found = findBed(roomId, bedId);
+      if (!found) return;
+      currentShareBedRef = { roomId, bedId };
+      const mdContent = generateBedMarkdownDocument(found.room, found.bed);
+      document.getElementById("shareMarkdownPreview").value = mdContent;
+      const backdrop = document.getElementById("shareModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function openSharePatientModalFromCurrentBed() {
+      if (!currentEditingBedRef) return;
+      // Save current edits first so shared data is up to date
+      const ref = { ...currentEditingBedRef };
+      saveBedModal();
+      openShareModal(ref.roomId, ref.bedId);
+    }
+
+    function closeShareModal() {
+      const backdrop = document.getElementById("shareModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+
+    function sendPatientViaWhatsAppDirect() {
+      const md = document.getElementById("shareMarkdownPreview").value;
+      const url = `https://wa.me/?text=${encodeURIComponent(md)}`;
+      window.open(url, "_blank");
+    }
+
+    function downloadPatientMarkdownFile() {
+      if (!currentShareBedRef) return;
+      const found = findBed(currentShareBedRef.roomId, currentShareBedRef.bedId);
+      if (!found) return;
+      const md = document.getElementById("shareMarkdownPreview").value;
+      const safeName = (found.bed.patient?.name || found.bed.code || "Paciente")
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `MediPiso_${safeName}.md`;
+
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`📄 Archivo ${filename} descargado`);
+    }
+
+    function copyShareMarkdownToClipboard() {
+      const md = document.getElementById("shareMarkdownPreview").value;
+      copyTextHelper(md);
+      showToast("📋 Ficha .md copiada al portapapeles");
+    }
+
+    function copyTextHelper(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+
+    // =========================================================================
+    // 15. IMPORT PATIENT (.MD FILE OR WHATSAPP TEXT) & TARGET BED SELECTOR
+    // =========================================================================
+    function openImportPatientModal() {
+      document.getElementById("importMarkdownInput").value = "";
+      document.getElementById("importDetectedPreviewBox").classList.add("hidden");
+      parsedImportPatientData = null;
+      populateImportTargetBedDropdown();
+      const backdrop = document.getElementById("importModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function closeImportModal() {
+      const backdrop = document.getElementById("importModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+
+    function populateImportTargetBedDropdown() {
+      const select = document.getElementById("importTargetBedSelect");
+      let html = "";
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          const isFree = bed.status === "free";
+          const statusLabel = isFree
+            ? "🟢 LIBRE"
+            : `🔴 Ocupada (${bed.patient?.name || "Paciente"})`;
+          html += `<option value="${room.id}|${bed.id}">${escapeHtml(bed.code)} — ${escapeHtml(room.name)} [${escapeHtml(statusLabel)}]</option>`;
+        });
+        html += `<option value="${room.id}|NEW_BED">➕ Crear Nueva Cama en ${escapeHtml(room.name)} para este paciente</option>`;
+      });
+      select.innerHTML = html;
+
+      // Default select first free bed if available
+      for (const room of appState.rooms) {
+        for (const bed of room.beds) {
+          if (bed.status === "free") {
+            select.value = `${room.id}|${bed.id}`;
+            return;
+          }
+        }
+      }
+    }
+
+    function handleImportFileUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById("importMarkdownInput").value = e.target.result || "";
+        parseIncomingMarkdownPreview();
+      };
+      reader.readAsText(file);
+    }
+
+    function parseMarkdownPatientText(rawText) {
+      if (!rawText || !rawText.trim()) return null;
+
+      // 1. Try exact embedded JSON block first
+      const jsonMatch = rawText.match(/MEDIPISO_JSON_START\s*([\s\S]*?)\s*MEDIPISO_JSON_END/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1].trim());
+          if (parsed && parsed.patient) {
+            return parsed;
+          }
+        } catch (err) {
+          console.warn("Fallo parseo JSON embebido, usando parser Markdown:", err);
+        }
+      }
+
+      // 2. Fallback: Intelligent Markdown human-text parser
+      const p = createEmptyPatient();
+      const extractLine = (regex) => {
+        const m = rawText.match(regex);
+        return m ? m[1].trim() : "";
+      };
+
+      p.name = extractLine(/\*\*Nombre:\*\*\s*([^\n]+)/i) || extractLine(/Ficha de Pase Clínico —\s*([^\(\n]+)/i) || "Paciente Importado";
+      p.rut = extractLine(/\*\*RUT:\*\*\s*([^|\n]+)/i);
+      const ageStr = extractLine(/\*\*Edad:\*\*\s*(\d+)/i);
+      if (ageStr) p.age = Number(ageStr);
+      p.recordNumber = extractLine(/\*\*N° Ficha:\*\*\s*([^|\n]+)/i);
+      p.phone = extractLine(/\*\*Teléfono:\*\*\s*([^\n]+)/i);
+      p.address = extractLine(/\*\*Dirección:\*\*\s*([^\n]+)/i);
+      const hospStr = extractLine(/Día\s+(\d+)/i);
+      if (hospStr) p.hospDays = Number(hospStr);
+
+      const diagSection = rawText.match(/##\s*🩺\s*Diagnósticos\s*\n([\s\S]*?)(?=\n##|$)/i);
+      if (diagSection) p.diagnoses = diagSection[1].trim();
+
+      const planSection = rawText.match(/##\s*📋\s*Plan Clínico[^\n]*\n([\s\S]*?)(?=\n##|$)/i);
+      if (planSection) p.clinicalPlan = planSection[1].trim();
+
+      return {
+        serviceType: "mine",
+        otherServiceName: "",
+        patient: p
+      };
+    }
+
+    function parseIncomingMarkdownPreview() {
+      const raw = document.getElementById("importMarkdownInput").value;
+      const parsed = parseMarkdownPatientText(raw);
+      const box = document.getElementById("importDetectedPreviewBox");
+      const summary = document.getElementById("importDetectedSummary");
+
+      if (!parsed || !parsed.patient) {
+        box.classList.add("hidden");
+        parsedImportPatientData = null;
+        return;
+      }
+
+      parsedImportPatientData = parsed;
+      const p = parsed.patient;
+      box.classList.remove("hidden");
+      summary.innerHTML = `
+        <div><strong>Nombre:</strong> ${escapeHtml(p.name || "Sin nombre")} ${p.age ? `(${escapeHtml(p.age)} años)` : ""} — <strong>RUT:</strong> ${escapeHtml(p.rut || "-")}</div>
+        <div><strong>Diagnósticos:</strong> ${escapeHtml((p.diagnoses || "-").split("\n")[0])}</div>
+        <div><strong>Hosp:</strong> Día ${Number(p.hospDays || 1)} | <strong>ATB:</strong> ${(p.antibiotics || []).length} | <strong>Pendientes:</strong> ${(p.tasks || []).length}</div>
+      `;
+    }
+
+    function confirmPatientImport() {
+      if (!parsedImportPatientData) {
+        parseIncomingMarkdownPreview();
+      }
+      if (!parsedImportPatientData || !parsedImportPatientData.patient) {
+        showToast("Pega primero un bloque .md o sube un archivo válido", "warning");
+        return;
+      }
+
+      const targetVal = document.getElementById("importTargetBedSelect").value;
+      if (!targetVal) return;
+      const [roomId, bedIdOrNew] = targetVal.split("|");
+      const room = appState.rooms.find(r => r.id === roomId);
+      if (!room) return;
+
+      let targetBed = null;
+      if (bedIdOrNew === "NEW_BED") {
+        const nextNum = room.beds.length + 1;
+        targetBed = {
+          id: "bed-" + Date.now(),
+          code: `Cama ${nextNum}`,
+          status: "occupied",
+          serviceType: "mine",
+          otherServiceName: "",
+          isMyBed: true,
+          seenToday: false,
+          patient: createEmptyPatient()
+        };
+        room.beds.push(targetBed);
+      } else {
+        targetBed = room.beds.find(b => b.id === bedIdOrNew);
+      }
+
+      if (!targetBed) return;
+
+      targetBed.status = "occupied";
+      targetBed.isMyBed = document.getElementById("importMarkAsMyBed").checked;
+      targetBed.seenToday = false;
+      targetBed.serviceType = parsedImportPatientData.serviceType || "mine";
+      targetBed.otherServiceName = parsedImportPatientData.otherServiceName || "";
+      targetBed.patient = JSON.parse(JSON.stringify(parsedImportPatientData.patient));
+
+      saveAppState();
+      closeImportModal();
+      renderAll();
+      showToast(`📥 Paciente ${targetBed.patient.name} importado en ${targetBed.code} (${room.name})`);
+    }
+
+    // =========================================================================
+    // 16. ROOM MANAGEMENT & FLOOR GENERATOR
+    // =========================================================================
+    function openAddRoomModal() {
+      document.getElementById("editingRoomId").value = "";
+      document.getElementById("roomModalTitle").textContent = "Crear Nueva Sala";
+      document.getElementById("roomNameInput").value = `Sala ${appState.rooms.length + 1}`;
+      document.getElementById("roomBedCountInput").value = 4;
+      document.getElementById("roomBedPrefixInput").value = "Cama ";
+      document.getElementById("roomIsolationInput").value = "none";
+      document.getElementById("roomIsolationNoteInput").value = "";
+
+      const backdrop = document.getElementById("roomModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function openEditRoomModal(roomId) {
+      const room = appState.rooms.find(r => r.id === roomId);
+      if (!room) return;
+      document.getElementById("editingRoomId").value = room.id;
+      document.getElementById("roomModalTitle").textContent = `Editar ${room.name}`;
+      document.getElementById("roomNameInput").value = room.name;
+      document.getElementById("roomBedCountInput").value = room.beds.length;
+      document.getElementById("roomBedPrefixInput").value = "Cama ";
+      document.getElementById("roomIsolationInput").value = room.roomIsolation || "none";
+      document.getElementById("roomIsolationNoteInput").value = room.roomIsolationNote || "";
+
+      const backdrop = document.getElementById("roomModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function closeRoomModal() {
+      const backdrop = document.getElementById("roomModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+
+    function saveRoomModal(e) {
+      e.preventDefault();
+      const editingId = document.getElementById("editingRoomId").value;
+      const name = document.getElementById("roomNameInput").value.trim();
+      const count = Math.max(1, Math.min(30, Number(document.getElementById("roomBedCountInput").value || 4)));
+      const prefix = document.getElementById("roomBedPrefixInput").value;
+      const roomIso = document.getElementById("roomIsolationInput").value;
+      const roomIsoNote = document.getElementById("roomIsolationNoteInput").value.trim();
+
+      if (editingId) {
+        const room = appState.rooms.find(r => r.id === editingId);
+        if (!room) return;
+        room.name = name;
+        room.roomIsolation = roomIso;
+        room.roomIsolationNote = roomIsoNote;
+
+        // Adjust bed count dynamically while preserving existing beds
+        while (room.beds.length < count) {
+          const n = room.beds.length + 1;
+          room.beds.push({
+            id: `bed-${Date.now()}-${n}`,
+            code: `${prefix}${n}`,
+            status: "free",
+            serviceType: "mine",
+            otherServiceName: "",
+            isMyBed: false,
+            seenToday: false,
+            patient: createEmptyPatient()
+          });
+        }
+        if (room.beds.length > count) {
+          room.beds = room.beds.slice(0, count);
+        }
+      } else {
+        const newBeds = [];
+        for (let i = 1; i <= count; i++) {
+          newBeds.push({
+            id: `bed-${Date.now()}-${i}`,
+            code: `${prefix}${i}`,
+            status: "free",
+            serviceType: "mine",
+            otherServiceName: "",
+            isMyBed: false,
+            seenToday: false,
+            patient: createEmptyPatient()
+          });
+        }
+        appState.rooms.push({
+          id: "room-" + Date.now(),
+          name,
+          roomIsolation: roomIso,
+          roomIsolationNote: roomIsoNote,
+          beds: newBeds
+        });
+      }
+
+      saveAppState();
+      closeRoomModal();
+      renderAll();
+      showToast(`🚪 ${name} guardada con ${count} camas`);
+    }
+
+    function quickAddBedToRoom(roomId) {
+      const room = appState.rooms.find(r => r.id === roomId);
+      if (!room) return;
+      const nextIndex = room.beds.length + 1;
+      room.beds.push({
+        id: "bed-" + Date.now(),
+        code: `Cama ${nextIndex}`,
+        status: "free",
+        serviceType: "mine",
+        otherServiceName: "",
+        isMyBed: false,
+        seenToday: false,
+        patient: createEmptyPatient()
+      });
+      saveAppState();
+      renderAll();
+      showToast(`+ Cama agregada a ${room.name}`);
+    }
+
+    function deleteRoom(roomId) {
+      appState.rooms = appState.rooms.filter(r => r.id !== roomId);
+      saveAppState();
+      renderAll();
+      showToast("🗑️ Sala eliminada");
+    }
+
+    // =========================================================================
+    // 17. NEW DAY / MORNING ROUND RESET & FLOOR CONFIG
+    // =========================================================================
+    function openNewDayModal() {
+      const backdrop = document.getElementById("newDayModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function closeNewDayModal() {
+      const backdrop = document.getElementById("newDayModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+
+    function confirmStartNewDay() {
+      const resetSeen = document.getElementById("newDayResetSeen").checked;
+      const incHosp = document.getElementById("newDayIncrementHosp").checked;
+      const incAtb = document.getElementById("newDayIncrementAtb").checked;
+      const decTasks = document.getElementById("newDayDecrementTasks").checked;
+
+      appState.rooms.forEach(room => {
+        room.beds.forEach(bed => {
+          if (resetSeen) bed.seenToday = false;
+          if (bed.status === "occupied" && bed.patient) {
+            if (incHosp) {
+              bed.patient.hospDays = Number(bed.patient.hospDays || 0) + 1;
+            }
+            if (incAtb && Array.isArray(bed.patient.antibiotics)) {
+              bed.patient.antibiotics.forEach(a => {
+                a.currentDay = Number(a.currentDay || 0) + 1;
+              });
+            }
+            if (decTasks && Array.isArray(bed.patient.tasks)) {
+              bed.patient.tasks.forEach(t => {
+                if (!t.completed && (t.timing === "in_days" || t.timing === "tomorrow")) {
+                  t.daysRemaining = Math.max(0, Number(t.daysRemaining || 1) - 1);
+                  if (t.daysRemaining === 0) t.timing = "today";
+                }
+              });
+            }
+          }
+        });
+      });
+
+      saveAppState();
+      closeNewDayModal();
+      renderAll();
+      showToast("☀️ ¡Nuevo día iniciado! Días y pase actualizados.");
+    }
+
+    function openFloorConfigModal() {
+      document.getElementById("configFloorName").value = appState.floorName || "";
+      document.getElementById("configMyServiceName").value = appState.myServiceName || "";
+      const backdrop = document.getElementById("floorConfigModalBackdrop");
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+    }
+
+    function closeFloorConfigModal() {
+      const backdrop = document.getElementById("floorConfigModalBackdrop");
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+
+    function saveFloorHeaderSettings() {
+      appState.floorName = document.getElementById("configFloorName").value.trim() || "Mi Piso";
+      appState.myServiceName = document.getElementById("configMyServiceName").value.trim() || "Medicina";
+      saveAppState();
+      closeFloorConfigModal();
+      renderAll();
+      showToast("⚙️ Configuración del piso actualizada");
+    }
+
+    function buildFloorFromPattern() {
+      const pattern = document.getElementById("quickBuilderPattern").value.trim();
+      if (!pattern) return;
+      const counts = pattern.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0 && n <= 30);
+      if (!counts.length) {
+        showToast("Ingresa números separados por coma, ej: 4, 4, 2, 6", "warning");
+        return;
+      }
+
+      const newRooms = counts.map((bedCount, idx) => {
+        const rNum = idx + 1;
+        const beds = [];
+        for (let b = 1; b <= bedCount; b++) {
+          beds.push({
+            id: `bed-${Date.now()}-${rNum}-${b}`,
+            code: `Cama ${rNum}0${b}`,
+            status: "free",
+            serviceType: "mine",
+            otherServiceName: "",
+            isMyBed: false,
+            seenToday: false,
+            patient: createEmptyPatient()
+          });
+        }
+        return {
+          id: `room-${Date.now()}-${rNum}`,
+          name: `Sala ${rNum}`,
+          roomIsolation: "none",
+          roomIsolationNote: "",
+          beds
+        };
+      });
+
+      appState.rooms = newRooms;
+      saveAppState();
+      closeFloorConfigModal();
+      renderAll();
+      showToast(`🏗️ Piso creado con ${newRooms.length} salas a medida`);
+    }
+
+    function exportFullFloorBackup() {
+      const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Respaldo_MediPiso_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function loadDemoFloorData() {
+      appState = generateDefaultFloor();
+      saveAppState();
+      closeFloorConfigModal();
+      renderAll();
+      showToast("🔄 Piso de demostración restaurado");
+    }
+
+    // Dark Mode Toggle
+    function toggleDarkMode() {
+      document.documentElement.classList.toggle("dark");
+      localStorage.setItem("medipiso_theme", document.documentElement.classList.contains("dark") ? "dark" : "light");
+    }
+
+    window.onload = function () {
+      if (localStorage.getItem("medipiso_theme") === "dark") {
+        document.documentElement.classList.add("dark");
+      }
+      loadAppState();
+      renderAll();
+    };
+  </script>
+</body>
+</html>
